@@ -1,0 +1,78 @@
+@startuml GatoCuidado
+
+!theme blueprint
+
+title Diagrama UML - Sistema de Cuidado de un Gato
+
+' ==================== CLASES ====================
+
+class Gato {
+    - nombre : String
+    - edad : int
+    - hambre : int
+
+    + Gato(nombre : String, edad : int)
+    + Comer() : void
+    + Dormir() : void
+    + Maullar() : void
+    + IrAlBano() : void
+}
+
+class GatoDomestico {
+    - raza : String
+
+    + Jugar() : void
+}
+
+class Dueño {
+    - nombre : String
+
+    + AlimentarGato() : void
+    + LimpiarArenero() : void
+    + LlevarAlVeterinario() : void
+}
+
+class Comida {
+    - tipo : String
+    - cantidad : float
+
+    + Servir() : void
+}
+
+class Arenero {
+    - limpio : bool
+    - ubicacion : String
+
+    + Limpiar() : void
+    + Usar() : void
+}
+
+class Veterinario {
+    - nombre : String
+    - especialidad : String
+
+    + RevisarGato() : void
+    + Vacunar() : void
+}
+
+' ==================== HERENCIA ====================
+
+GatoDomestico --|> Gato : ES UN
+
+' ==================== COMPOSICIÓN / TIENE ====================
+
+Dueño "1" *-- "1" Gato : TIENE
+
+Dueño "1" *-- "1*" Arenero : TIENE
+
+' ==================== USO ====================
+
+Gato "1" ..> "1" Arenero : USA PARA IR AL BAÑO
+
+Dueño "1" ..> "0..*" Comida : USA PARA ALIMENTAR
+
+Dueño "1" ..> "1*" Veterinario : USA
+
+Veterinario "1" ..> "0..*" Gato : ATIENDE
+
+@enduml
