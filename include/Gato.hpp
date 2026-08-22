@@ -9,6 +9,9 @@ public:
 
     void Comer();
     void Dormir();
+    void Dormir(const std::string& videoPath, void* windowHandle);
+    void PerderEnergia();
+    int ObtenerEnergia() const;
     void Maullar();
     void IrAlBano();
 
@@ -16,4 +19,5 @@ private:
     std::string nombre;
     int edad;
     int hambre;
+    int energia;
 };

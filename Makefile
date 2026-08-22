@@ -15,6 +15,10 @@ ifeq ($(strip $(SFML_LIBS)),)
 SFML_LIBS := -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio
 endif
 
+ifeq ($(OS),Windows_NT)
+VIDEO_LIBS := -lmfplay -lmfplat -lmfuuid -lole32
+endif
+
 WINE ?= wine
 
 ifeq ($(shell command -v wine 2>/dev/null),)
@@ -43,7 +47,7 @@ $(TARGET):
 else
 $(TARGET): $(OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(SFML_CFLAGS) $^ -o $@ $(SFML_LIBS)
+	$(CXX) $(CXXFLAGS) $(SFML_CFLAGS) $^ -o $@ $(SFML_LIBS) $(VIDEO_LIBS)
 
 bin/%.o: src/%.cpp
 	@mkdir -p $(dir $@)

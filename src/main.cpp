@@ -2,10 +2,13 @@
 #include <SFML/Audio.hpp>
 #include <algorithm>
 
+#include "Gato.hpp"
+
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "Gatochi");
     window.setKeyRepeatEnabled(false);
+    Gato gato("Gatochi", 1);
 
     sf::Texture coverTexture;
     if (!coverTexture.loadFromFile("assets/Images/gatochi.jpg"))
@@ -14,7 +17,7 @@ int main()
     }
 
     sf::Texture mainTexture;
-    if (!mainTexture.loadFromFile("assets/Images/FondoPrincipal.jpg"))
+    if (!mainTexture.loadFromFile("assets/Images/Fondo Principal.jpg"))
     {
         return 1;
     }
@@ -33,6 +36,12 @@ int main()
 
     sf::Texture catLeftTexture;
     if (!catLeftTexture.loadFromFile("assets/Images/Gato Izquierda.png"))
+    {
+        return 1;
+    }
+
+    sf::Texture energyTexture;
+    if (!energyTexture.loadFromFile("assets/Images/Energia.png"))
     {
         return 1;
     }
@@ -56,6 +65,9 @@ int main()
     fitSpriteToWindow(background, window);
 
     const sf::Vector2u catSize = catIdleTexture.getSize();
+    const sf::Vector2u energySheetSize = energyTexture.getSize();
+    const int energyFrameWidth = static_cast<int>(energySheetSize.x / 2);
+    const int energyFrameHeight = static_cast<int>(energySheetSize.y);
     const sf::Vector2u catRightSheetSize = catRightTexture.getSize();
     const sf::Vector2u catLeftSheetSize = catLeftTexture.getSize();
     const int catRightFrameCount = 4;
@@ -85,6 +97,21 @@ int main()
         backgroundBounds.left + backgroundBounds.width * 0.47f,
         catGroundY);
 
+    sf::Sprite energySprites[3];
+    const float energyScale = 0.10f;
+    const float energyMargin = 20.0f;
+    for (int index = 0; index < 3; ++index)
+    {
+        energySprites[index].setTexture(energyTexture);
+        energySprites[index].setTextureRect(
+            sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
+        energySprites[index].setScale(energyScale, energyScale);
+        energySprites[index].setPosition(
+            static_cast<float>(window.getSize().x) - energyMargin -
+                energyFrameWidth * energyScale * static_cast<float>(3 - index),
+            energyMargin);
+    }
+
     sf::Font titleFont;
     if (!titleFont.loadFromFile("C:/Windows/Fonts/arial.ttf"))
     {
@@ -110,6 +137,45 @@ int main()
         pressText.getLocalBounds().left + pressText.getLocalBounds().width / 2.0f,
         pressText.getLocalBounds().top + pressText.getLocalBounds().height / 2.0f);
 
+    sf::Text sleepText;
+    sleepText.setFont(titleFont);
+    sleepText.setString("ve a dormir");
+    sleepText.setCharacterSize(std::max(26u, static_cast<unsigned int>(window.getSize().y / 18u)));
+    sleepText.setFillColor(sf::Color::White);
+    sleepText.setStyle(sf::Text::Bold);
+    sleepText.setPosition(
+        static_cast<float>(window.getSize().x) / 2.0f,
+        18.0f);
+    sleepText.setOrigin(
+        sleepText.getLocalBounds().left + sleepText.getLocalBounds().width / 2.0f,
+        sleepText.getLocalBounds().top);
+
+    sf::Text sleepPrompt;
+    sleepPrompt.setFont(titleFont);
+    sleepPrompt.setString("Presiona E para dormir");
+    sleepPrompt.setCharacterSize(22);
+    sleepPrompt.setFillColor(sf::Color::White);
+    sleepPrompt.setStyle(sf::Text::Bold);
+    sleepPrompt.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.40f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    sleepPrompt.setOrigin(
+        sleepPrompt.getLocalBounds().left + sleepPrompt.getLocalBounds().width / 2.0f,
+        sleepPrompt.getLocalBounds().top);
+
+    sf::Text healthText;
+    healthText.setFont(titleFont);
+    healthText.setString("SANO");
+    healthText.setCharacterSize(26);
+    healthText.setFillColor(sf::Color::White);
+    healthText.setStyle(sf::Text::Bold);
+    healthText.setPosition(
+        static_cast<float>(window.getSize().x) / 2.0f,
+        static_cast<float>(window.getSize().y) - 24.0f);
+    healthText.setOrigin(
+        healthText.getLocalBounds().left + healthText.getLocalBounds().width / 2.0f,
+        healthText.getLocalBounds().top + healthText.getLocalBounds().height / 2.0f);
+
     sf::Music music;
     if (!music.openFromFile("assets/Music/Fondo.mp3"))
     {
@@ -121,13 +187,21 @@ int main()
     sf::Clock transitionClock;
     sf::Clock frameClock;
     sf::Clock catAnimClock;
+    sf::Clock healthTransitionClock;
     bool transitioning = false;
     bool started = false;
     int currentRightFrame = 0;
     int currentLeftFrame = 0;
-    const float catSpeed = 220.0f;
     const float rightFrameDuration = 0.10f;
     const float leftFrameDuration = 0.10f;
+    const float energyDrainInterval = 30.0f;
+    float movementEnergyTime = 0.0f;
+    const float baseCatSpeed = 220.0f;
+    const float sleepZoneRight = backgroundBounds.left + backgroundBounds.width * 0.22f;
+    const float healthTransitionDuration = 0.8f;
+    const float healthTransitionOffset = 180.0f;
+    bool wasHealthy = true;
+    bool healthTransitioning = false;
 
     auto setCatIdle = [&cat, &catIdleTexture, catScale, backgroundBounds, catGroundY]()
     {
@@ -166,6 +240,8 @@ int main()
     while (window.isOpen())
     {
         const float deltaTime = frameClock.restart().asSeconds();
+        bool energyKeyPressed = false;
+        bool sleepKeyPressed = false;
 
         sf::Event event{};
         while (window.pollEvent(event))
@@ -180,6 +256,16 @@ int main()
                 transitioning = true;
                 transitionClock.restart();
             }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Num1 && started)
+            {
+                energyKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::E && started)
+            {
+                sleepKeyPressed = true;
+            }
         }
 
         window.clear(sf::Color::Black);
@@ -192,6 +278,85 @@ int main()
             const bool movingLeft =
                 sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Left);
+            const bool moving = movingRight != movingLeft;
+            const int energy = gato.ObtenerEnergia();
+            const bool nearBed = cat.getPosition().x <= sleepZoneRight;
+            const bool canSleep = energy == 0 && nearBed;
+
+            if (sleepKeyPressed && canSleep)
+            {
+                gato.Dormir("assets/Images/Dormir.mp4", window.getSystemHandle());
+                window.setActive(true);
+                window.clear(sf::Color::Black);
+                window.display();
+                movementEnergyTime = 0.0f;
+                for (sf::Sprite& energySprite : energySprites)
+                {
+                    energySprite.setTextureRect(
+                        sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
+                }
+                setCatIdle();
+                currentRightFrame = 0;
+                currentLeftFrame = 0;
+                catAnimClock.restart();
+            }
+
+            if (energyKeyPressed && gato.ObtenerEnergia() > 0)
+            {
+                gato.PerderEnergia();
+                energySprites[gato.ObtenerEnergia()].setTextureRect(
+                    sf::IntRect(0, 0, energyFrameWidth, energyFrameHeight));
+            }
+
+            if (moving)
+            {
+                movementEnergyTime += deltaTime;
+                while (movementEnergyTime >= energyDrainInterval && gato.ObtenerEnergia() > 0)
+                {
+                    movementEnergyTime -= energyDrainInterval;
+                    gato.PerderEnergia();
+                    energySprites[gato.ObtenerEnergia()].setTextureRect(
+                        sf::IntRect(0, 0, energyFrameWidth, energyFrameHeight));
+                }
+            }
+
+            const bool isHealthy = gato.ObtenerEnergia() > 0;
+            if (isHealthy != wasHealthy)
+            {
+                healthText.setString(isHealthy ? "CANSADO -> SANO" : "SANO -> CANSADO");
+                healthTransitionClock.restart();
+                healthTransitioning = true;
+                wasHealthy = isHealthy;
+            }
+
+            if (healthTransitioning)
+            {
+                const float progress = std::min(
+                    healthTransitionClock.getElapsedTime().asSeconds() /
+                        healthTransitionDuration,
+                    1.0f);
+                const float transitionX = static_cast<float>(window.getSize().x) / 2.0f -
+                    healthTransitionOffset * (1.0f - progress);
+                healthText.setPosition(transitionX, static_cast<float>(window.getSize().y) - 24.0f);
+                healthText.setOrigin(
+                    healthText.getLocalBounds().left + healthText.getLocalBounds().width / 2.0f,
+                    healthText.getLocalBounds().top + healthText.getLocalBounds().height / 2.0f);
+
+                if (progress >= 1.0f)
+                {
+                    healthText.setString(isHealthy ? "SANO" : "CANSADO");
+                    healthText.setPosition(
+                        static_cast<float>(window.getSize().x) / 2.0f,
+                        static_cast<float>(window.getSize().y) - 24.0f);
+                    healthText.setOrigin(
+                        healthText.getLocalBounds().left + healthText.getLocalBounds().width / 2.0f,
+                        healthText.getLocalBounds().top + healthText.getLocalBounds().height / 2.0f);
+                    healthTransitioning = false;
+                }
+            }
+
+            const float catSpeed = baseCatSpeed *
+                (0.4f + 0.2f * static_cast<float>(gato.ObtenerEnergia()));
 
             if (movingRight && !movingLeft)
             {
@@ -244,6 +409,19 @@ int main()
 
             window.draw(background);
             window.draw(cat);
+            for (const sf::Sprite& energySprite : energySprites)
+            {
+                window.draw(energySprite);
+            }
+            if (gato.ObtenerEnergia() == 0)
+            {
+                window.draw(sleepText);
+                if (nearBed)
+                {
+                    window.draw(sleepPrompt);
+                }
+            }
+            window.draw(healthText);
         }
         else if (transitioning)
         {
