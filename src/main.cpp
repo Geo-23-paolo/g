@@ -52,6 +52,12 @@ int main()
         return 1;
     }
 
+    sf::Texture gameOverTexture;
+    if (!gameOverTexture.loadFromFile("assets/Images/Game Over.jpg"))
+    {
+        return 1;
+    }
+
     auto fitSpriteToWindow = [](sf::Sprite& sprite, const sf::RenderWindow& window)
     {
         const sf::Vector2u spriteSize = sprite.getTexture()->getSize();
@@ -67,8 +73,10 @@ int main()
     sf::Sprite cover(coverTexture);
     sf::Sprite background(mainTexture);
     sf::Sprite cat(catIdleTexture);
+    sf::Sprite gameOverBackground(gameOverTexture);
     fitSpriteToWindow(cover, window);
     fitSpriteToWindow(background, window);
+    fitSpriteToWindow(gameOverBackground, window);
 
     const sf::Vector2u catSize = catIdleTexture.getSize();
     const sf::Vector2u energySheetSize = energyTexture.getSize();
@@ -199,18 +207,53 @@ int main()
         foodPrompt.getLocalBounds().left + foodPrompt.getLocalBounds().width / 2.0f,
         foodPrompt.getLocalBounds().top);
 
-    sf::Text gameOverText;
-    gameOverText.setFont(titleFont);
-    gameOverText.setString("game over\n\nPresione espacio para volver al inicio");
-    gameOverText.setCharacterSize(30);
-    gameOverText.setFillColor(sf::Color::White);
-    gameOverText.setStyle(sf::Text::Bold);
-    gameOverText.setPosition(
+    sf::Text gameOverStateText;
+    gameOverStateText.setFont(titleFont);
+    gameOverStateText.setCharacterSize(24);
+    gameOverStateText.setFillColor(sf::Color::White);
+    gameOverStateText.setStyle(sf::Text::Bold);
+
+    sf::RectangleShape restartOption(sf::Vector2f(300.0f, 54.0f));
+    sf::RectangleShape reviveOption(sf::Vector2f(300.0f, 54.0f));
+    restartOption.setPosition(250.0f, 435.0f);
+    reviveOption.setPosition(250.0f, 500.0f);
+    restartOption.setFillColor(sf::Color(30, 30, 30, 220));
+    reviveOption.setFillColor(sf::Color(30, 30, 30, 220));
+    restartOption.setOutlineThickness(3.0f);
+    reviveOption.setOutlineThickness(3.0f);
+
+    sf::Text restartText;
+    restartText.setFont(titleFont);
+    restartText.setString("volver a iniciar el juego");
+    restartText.setCharacterSize(21);
+    restartText.setFillColor(sf::Color::White);
+    restartText.setPosition(400.0f, 462.0f);
+    restartText.setOrigin(
+        restartText.getLocalBounds().left + restartText.getLocalBounds().width / 2.0f,
+        restartText.getLocalBounds().top + restartText.getLocalBounds().height / 2.0f);
+
+    sf::Text reviveText;
+    reviveText.setFont(titleFont);
+    reviveText.setString("Revivir");
+    reviveText.setCharacterSize(21);
+    reviveText.setFillColor(sf::Color::White);
+    reviveText.setPosition(400.0f, 527.0f);
+    reviveText.setOrigin(
+        reviveText.getLocalBounds().left + reviveText.getLocalBounds().width / 2.0f,
+        reviveText.getLocalBounds().top + reviveText.getLocalBounds().height / 2.0f);
+
+    sf::Text veterinarianText;
+    veterinarianText.setFont(titleFont);
+    veterinarianText.setString("veterinario");
+    veterinarianText.setCharacterSize(36);
+    veterinarianText.setFillColor(sf::Color::White);
+    veterinarianText.setStyle(sf::Text::Bold);
+    veterinarianText.setPosition(
         static_cast<float>(window.getSize().x) / 2.0f,
         static_cast<float>(window.getSize().y) / 2.0f);
-    gameOverText.setOrigin(
-        gameOverText.getLocalBounds().left + gameOverText.getLocalBounds().width / 2.0f,
-        gameOverText.getLocalBounds().top + gameOverText.getLocalBounds().height / 2.0f);
+    veterinarianText.setOrigin(
+        veterinarianText.getLocalBounds().left + veterinarianText.getLocalBounds().width / 2.0f,
+        veterinarianText.getLocalBounds().top + veterinarianText.getLocalBounds().height / 2.0f);
 
     sf::Text sleepPrompt;
     sleepPrompt.setFont(titleFont);
@@ -246,6 +289,13 @@ int main()
     music.setLoop(true);
     music.play();
 
+    sf::Music gameOverMusic;
+    if (!gameOverMusic.openFromFile("assets/Music/Game Over Song.mp3"))
+    {
+        return 1;
+    }
+    gameOverMusic.setLoop(true);
+
     sf::Clock transitionClock;
     sf::Clock frameClock;
     sf::Clock catAnimClock;
@@ -264,6 +314,9 @@ int main()
     sf::Clock foodWarningClock;
     bool foodWarningStarted = false;
     bool gameOver = false;
+    bool veterinarianScreen = false;
+    int selectedGameOverOption = 0;
+    std::string gameOverState = "HAMBRIENTO";
     const float baseCatSpeed = 220.0f;
     const float sleepZoneRight = backgroundBounds.left + backgroundBounds.width * 0.22f;
     const float foodZoneLeft = backgroundBounds.left + backgroundBounds.width * 0.50f;
@@ -307,6 +360,17 @@ int main()
         cat.setPosition(basePosition.x, catLeftGroundY);
     };
 
+    auto enterGameOver = [&](const std::string& state)
+    {
+        if (!gameOver)
+        {
+            gameOverState = state;
+            gameOver = true;
+            music.stop();
+            gameOverMusic.play();
+        }
+    };
+
     while (window.isOpen())
     {
         const float deltaTime = frameClock.restart().asSeconds();
@@ -316,6 +380,9 @@ int main()
         bool sleepKeyPressed = false;
         bool eatKeyPressed = false;
         bool restartKeyPressed = false;
+        bool enterKeyPressed = false;
+        bool upKeyPressed = false;
+        bool downKeyPressed = false;
 
         sf::Event event{};
         while (window.pollEvent(event))
@@ -332,9 +399,24 @@ int main()
                 transitionClock.restart();
             }
 
-            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space && gameOver)
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space && gameOver && !veterinarianScreen)
             {
                 restartKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Enter && gameOver && !veterinarianScreen)
+            {
+                enterKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Up && gameOver && !veterinarianScreen)
+            {
+                upKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Down && gameOver && !veterinarianScreen)
+            {
+                downKeyPressed = true;
             }
 
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Num1 && started)
@@ -365,7 +447,7 @@ int main()
 
         window.clear(sf::Color::Black);
 
-        if (restartKeyPressed)
+        if (restartKeyPressed || (enterKeyPressed && selectedGameOverOption == 0))
         {
             gato.Dormir();
             food = 3;
@@ -373,6 +455,10 @@ int main()
             foodWarningStarted = false;
             movementEnergyTime = 0.0f;
             gameOver = false;
+            veterinarianScreen = false;
+            selectedGameOverOption = 0;
+            gameOverMusic.stop();
+            music.play();
             started = false;
             transitioning = false;
             healthState = 0;
@@ -393,9 +479,39 @@ int main()
                 catGroundY);
         }
 
-        if (gameOver)
+        if (gameOver && (upKeyPressed || downKeyPressed))
         {
-            window.draw(gameOverText);
+            selectedGameOverOption = selectedGameOverOption == 0 ? 1 : 0;
+        }
+
+        if (gameOver && enterKeyPressed && selectedGameOverOption == 1)
+        {
+            gameOver = false;
+            veterinarianScreen = true;
+        }
+
+        if (veterinarianScreen)
+        {
+            window.clear(sf::Color::Black);
+            window.draw(veterinarianText);
+        }
+        else if (gameOver)
+        {
+            restartOption.setOutlineColor(selectedGameOverOption == 0 ? sf::Color::Yellow : sf::Color::White);
+            reviveOption.setOutlineColor(selectedGameOverOption == 1 ? sf::Color::Yellow : sf::Color::White);
+            gameOverStateText.setString("pasaste de " + gameOverState + " a MUERTO");
+            gameOverStateText.setPosition(
+                static_cast<float>(window.getSize().x) / 2.0f,
+                385.0f);
+            gameOverStateText.setOrigin(
+                gameOverStateText.getLocalBounds().left + gameOverStateText.getLocalBounds().width / 2.0f,
+                gameOverStateText.getLocalBounds().top + gameOverStateText.getLocalBounds().height / 2.0f);
+            window.draw(gameOverBackground);
+            window.draw(gameOverStateText);
+            window.draw(restartOption);
+            window.draw(reviveOption);
+            window.draw(restartText);
+            window.draw(reviveText);
         }
         else if (started)
         {
@@ -437,7 +553,8 @@ int main()
 
             if (gameOverKeyPressed)
             {
-                gameOver = true;
+                enterGameOver(food == 0 ? "HAMBRIENTO" :
+                    (energy > 0 ? "SANO" : "CANSADO"));
             }
 
             if (food == 0)
@@ -451,7 +568,7 @@ int main()
 
                 if (secondsRemaining == 0)
                 {
-                    gameOver = true;
+                    enterGameOver("HAMBRIENTO");
                 }
             }
 
