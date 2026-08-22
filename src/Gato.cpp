@@ -77,12 +77,24 @@ void Gato::Comer()
     hambre = 0;
 }
 
+void Gato::Comer(const std::string& videoPath, void* windowHandle)
+{
+    ReproducirVideo(videoPath, windowHandle);
+    Comer();
+}
+
 void Gato::Dormir()
 {
     energia = 3;
 }
 
 void Gato::Dormir(const std::string& videoPath, void* windowHandle)
+{
+    ReproducirVideo(videoPath, windowHandle);
+    Dormir();
+}
+
+void Gato::ReproducirVideo(const std::string& videoPath, void* windowHandle)
 {
 #ifdef _WIN32
     char absoluteVideoPath[MAX_PATH];
@@ -204,7 +216,6 @@ void Gato::Dormir(const std::string& videoPath, void* windowHandle)
     (void)videoPath;
     (void)windowHandle;
 #endif
-    Dormir();
 }
 
 void Gato::PerderEnergia()
