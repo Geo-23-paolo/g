@@ -2,6 +2,9 @@
 #include <SFML/Audio.hpp>
 #include <algorithm>
 
+#include "Arenero.hpp"
+#include "Cama.hpp"
+#include "Comida.hpp"
 #include "Gato.hpp"
 
 int main()
@@ -9,6 +12,9 @@ int main()
     sf::RenderWindow window(sf::VideoMode(800, 600), "Gatochi");
     window.setKeyRepeatEnabled(false);
     Gato gato("Gatochi", 1);
+    Comida comida("comida", 3.0f);
+    Arenero arenero(true, "derecha");
+    Cama cama;
 
     sf::Texture coverTexture;
     if (!coverTexture.loadFromFile("assets/Images/gatochi.jpg"))
@@ -82,9 +88,6 @@ int main()
     const sf::Vector2u energySheetSize = energyTexture.getSize();
     const int energyFrameWidth = static_cast<int>(energySheetSize.x / 2);
     const int energyFrameHeight = static_cast<int>(energySheetSize.y);
-    const sf::Vector2u foodSheetSize = foodTexture.getSize();
-    const int foodFrameWidth = static_cast<int>(foodSheetSize.x / 2);
-    const int foodFrameHeight = static_cast<int>(foodSheetSize.y);
     const sf::Vector2u catRightSheetSize = catRightTexture.getSize();
     const sf::Vector2u catLeftSheetSize = catLeftTexture.getSize();
     const int catRightFrameCount = 4;
@@ -129,20 +132,6 @@ int main()
             energyMargin);
     }
 
-    sf::Sprite foodSprites[3];
-    const float foodScale = 0.10f;
-    const float foodMargin = 20.0f;
-    for (int index = 0; index < 3; ++index)
-    {
-        foodSprites[index].setTexture(foodTexture);
-        foodSprites[index].setTextureRect(
-            sf::IntRect(foodFrameWidth, 0, foodFrameWidth, foodFrameHeight));
-        foodSprites[index].setScale(foodScale, foodScale);
-        foodSprites[index].setPosition(
-            foodMargin + foodFrameWidth * foodScale * static_cast<float>(index),
-            foodMargin);
-    }
-
     sf::Font titleFont;
     if (!titleFont.loadFromFile("C:/Windows/Fonts/arial.ttf"))
     {
@@ -154,6 +143,11 @@ int main()
             }
         }
     }
+
+    comida.ConfigurarInterfaz(foodTexture, titleFont, backgroundBounds);
+    arenero.ConfigurarInterfaz(titleFont, backgroundBounds);
+    cama.ConfigurarInterfaz(titleFont, backgroundBounds);
+    gato.ConfigurarAvisos(titleFont, backgroundBounds);
 
     sf::Text pressText;
     pressText.setFont(titleFont);
@@ -168,19 +162,6 @@ int main()
         pressText.getLocalBounds().left + pressText.getLocalBounds().width / 2.0f,
         pressText.getLocalBounds().top + pressText.getLocalBounds().height / 2.0f);
 
-    sf::Text sleepText;
-    sleepText.setFont(titleFont);
-    sleepText.setString("ve a dormir");
-    sleepText.setCharacterSize(std::max(26u, static_cast<unsigned int>(window.getSize().y / 18u)));
-    sleepText.setFillColor(sf::Color::White);
-    sleepText.setStyle(sf::Text::Bold);
-    sleepText.setPosition(
-        static_cast<float>(window.getSize().x) / 2.0f,
-        18.0f);
-    sleepText.setOrigin(
-        sleepText.getLocalBounds().left + sleepText.getLocalBounds().width / 2.0f,
-        sleepText.getLocalBounds().top);
-
     sf::Text foodText;
     foodText.setFont(titleFont);
     foodText.setString("ve a comer");
@@ -193,19 +174,6 @@ int main()
     foodText.setOrigin(
         foodText.getLocalBounds().left + foodText.getLocalBounds().width / 2.0f,
         foodText.getLocalBounds().top);
-
-    sf::Text foodPrompt;
-    foodPrompt.setFont(titleFont);
-    foodPrompt.setString("Presiona C para comer");
-    foodPrompt.setCharacterSize(22);
-    foodPrompt.setFillColor(sf::Color::White);
-    foodPrompt.setStyle(sf::Text::Bold);
-    foodPrompt.setPosition(
-        backgroundBounds.left + backgroundBounds.width * 0.61f,
-        backgroundBounds.top + backgroundBounds.height * 0.56f);
-    foodPrompt.setOrigin(
-        foodPrompt.getLocalBounds().left + foodPrompt.getLocalBounds().width / 2.0f,
-        foodPrompt.getLocalBounds().top);
 
     sf::Text gameOverStateText;
     gameOverStateText.setFont(titleFont);
@@ -255,19 +223,6 @@ int main()
         veterinarianText.getLocalBounds().left + veterinarianText.getLocalBounds().width / 2.0f,
         veterinarianText.getLocalBounds().top + veterinarianText.getLocalBounds().height / 2.0f);
 
-    sf::Text sleepPrompt;
-    sleepPrompt.setFont(titleFont);
-    sleepPrompt.setString("Presiona E para dormir");
-    sleepPrompt.setCharacterSize(22);
-    sleepPrompt.setFillColor(sf::Color::White);
-    sleepPrompt.setStyle(sf::Text::Bold);
-    sleepPrompt.setPosition(
-        backgroundBounds.left + backgroundBounds.width * 0.40f,
-        backgroundBounds.top + backgroundBounds.height * 0.56f);
-    sleepPrompt.setOrigin(
-        sleepPrompt.getLocalBounds().left + sleepPrompt.getLocalBounds().width / 2.0f,
-        sleepPrompt.getLocalBounds().top);
-
     sf::Text healthText;
     healthText.setFont(titleFont);
     healthText.setString("SANO");
@@ -308,9 +263,6 @@ int main()
     const float leftFrameDuration = 0.10f;
     const float energyDrainInterval = 30.0f;
     float movementEnergyTime = 0.0f;
-    const float foodDrainInterval = 30.0f;
-    float foodTime = 0.0f;
-    int food = 3;
     sf::Clock foodWarningClock;
     bool foodWarningStarted = false;
     bool gameOver = false;
@@ -318,47 +270,10 @@ int main()
     int selectedGameOverOption = 0;
     std::string gameOverState = "HAMBRIENTO";
     const float baseCatSpeed = 220.0f;
-    const float sleepZoneRight = backgroundBounds.left + backgroundBounds.width * 0.22f;
-    const float foodZoneLeft = backgroundBounds.left + backgroundBounds.width * 0.50f;
-    const float foodZoneRight = backgroundBounds.left + backgroundBounds.width * 0.75f;
     const float healthTransitionDuration = 0.8f;
     const float healthTransitionOffset = 180.0f;
     int healthState = 0;
     bool healthTransitioning = false;
-
-    auto setCatIdle = [&cat, &catIdleTexture, catScale, backgroundBounds, catGroundY]()
-    {
-        const sf::Vector2f basePosition = cat.getPosition();
-        cat.setTexture(catIdleTexture, true);
-        cat.setOrigin(0.0f, cat.getLocalBounds().height);
-        cat.setScale(catScale, catScale);
-
-        const float idleRightLimit =
-            backgroundBounds.left + backgroundBounds.width - cat.getGlobalBounds().width;
-        const float clampedX = std::max(backgroundBounds.left, std::min(basePosition.x, idleRightLimit));
-        cat.setPosition(clampedX, catGroundY);
-    };
-
-    auto setCatRightFrame = [&cat, &catRightTexture, catRightFrameWidth, catRightFrameHeight, catRightScale, catRightGroundY](int frame)
-    {
-        const sf::Vector2f basePosition = cat.getPosition();
-        cat.setTexture(catRightTexture, true);
-        cat.setTextureRect(sf::IntRect(frame * catRightFrameWidth, 0, catRightFrameWidth, catRightFrameHeight));
-        cat.setOrigin(0.0f, cat.getLocalBounds().height);
-
-        cat.setScale(catRightScale, catRightScale);
-        cat.setPosition(basePosition.x, catRightGroundY);
-    };
-
-    auto setCatLeftFrame = [&cat, &catLeftTexture, catLeftFrameWidth, catLeftFrameHeight, catLeftScale, catLeftGroundY](int frame)
-    {
-        const sf::Vector2f basePosition = cat.getPosition();
-        cat.setTexture(catLeftTexture, true);
-        cat.setTextureRect(sf::IntRect(frame * catLeftFrameWidth, 0, catLeftFrameWidth, catLeftFrameHeight));
-        cat.setOrigin(0.0f, cat.getLocalBounds().height);
-        cat.setScale(catLeftScale, catLeftScale);
-        cat.setPosition(basePosition.x, catLeftGroundY);
-    };
 
     auto enterGameOver = [&](const std::string& state)
     {
@@ -375,10 +290,10 @@ int main()
     {
         const float deltaTime = frameClock.restart().asSeconds();
         bool energyKeyPressed = false;
-        bool foodKeyPressed = false;
         bool gameOverKeyPressed = false;
         bool sleepKeyPressed = false;
         bool eatKeyPressed = false;
+        bool bathroomKeyPressed = false;
         bool restartKeyPressed = false;
         bool enterKeyPressed = false;
         bool upKeyPressed = false;
@@ -424,11 +339,6 @@ int main()
                 energyKeyPressed = true;
             }
 
-            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Num2 && started)
-            {
-                foodKeyPressed = true;
-            }
-
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Num3 && started)
             {
                 gameOverKeyPressed = true;
@@ -443,6 +353,11 @@ int main()
             {
                 eatKeyPressed = true;
             }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::M && started)
+            {
+                bathroomKeyPressed = true;
+            }
         }
 
         window.clear(sf::Color::Black);
@@ -450,8 +365,7 @@ int main()
         if (restartKeyPressed || (enterKeyPressed && selectedGameOverOption == 0))
         {
             gato.Dormir();
-            food = 3;
-            foodTime = 0.0f;
+            gato.Comer(comida);
             foodWarningStarted = false;
             movementEnergyTime = 0.0f;
             gameOver = false;
@@ -468,12 +382,12 @@ int main()
                 energySprite.setTextureRect(
                     sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
             }
-            for (sf::Sprite& foodSprite : foodSprites)
-            {
-                foodSprite.setTextureRect(
-                    sf::IntRect(foodFrameWidth, 0, foodFrameWidth, foodFrameHeight));
-            }
-            setCatIdle();
+            gato.Mover(cat, catIdleTexture, catRightTexture, catLeftTexture,
+                catRightFrameWidth, catRightFrameHeight, catLeftFrameWidth,
+                catLeftFrameHeight, catScale, catRightScale, catLeftScale,
+                catGroundY, catRightGroundY, catLeftGroundY, backgroundBounds,
+                catAnimClock, currentRightFrame, currentLeftFrame,
+                rightFrameDuration, leftFrameDuration, false, false, 0.0f, 0.0f);
             cat.setPosition(
                 backgroundBounds.left + backgroundBounds.width * 0.47f,
                 catGroundY);
@@ -523,27 +437,22 @@ int main()
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Left);
             const bool moving = movingRight != movingLeft;
             const int energy = gato.ObtenerEnergia();
-            const bool nearBed = cat.getPosition().x <= sleepZoneRight;
-            const bool canSleep = energy == 0 && nearBed;
-            const bool nearFood = cat.getPosition().x >= foodZoneLeft &&
-                cat.getPosition().x <= foodZoneRight;
-            const bool canEat = food == 0 && nearFood;
+            const bool nearBed = cama.EstaCerca(cat.getPosition().x);
+            const bool nearFood = gato.CercaDeComida(cat.getPosition().x);
+            const bool nearBathroom = arenero.EstaCerca(cat.getPosition().x);
 
-            if (foodKeyPressed && food > 0)
+            if (bathroomKeyPressed && nearBathroom)
             {
-                --food;
-                foodSprites[food].setTextureRect(
-                    sf::IntRect(0, 0, foodFrameWidth, foodFrameHeight));
+                arenero.Usar(comida, gato, window.getSystemHandle());
             }
 
-            foodTime += deltaTime;
-            while (foodTime >= foodDrainInterval && food > 0)
+            if (eatKeyPressed && gato.Comer(comida, "assets/Images/Comer.mp4",
+                window.getSystemHandle(), cat.getPosition().x))
             {
-                foodTime -= foodDrainInterval;
-                --food;
-                foodSprites[food].setTextureRect(
-                    sf::IntRect(0, 0, foodFrameWidth, foodFrameHeight));
+                foodWarningStarted = false;
             }
+
+            const int food = comida.ObtenerCantidad();
 
             if (food == 0 && !foodWarningStarted)
             {
@@ -554,7 +463,8 @@ int main()
             if (gameOverKeyPressed)
             {
                 enterGameOver(food == 0 ? "HAMBRIENTO" :
-                    (energy > 0 ? "SANO" : "CANSADO"));
+                    (food == 3 ? "NECESITA IR AL BAÑO" :
+                    (energy > 0 ? "SANO" : "CANSADO")));
             }
 
             if (food == 0)
@@ -572,22 +482,9 @@ int main()
                 }
             }
 
-            if (eatKeyPressed && canEat)
+            if (sleepKeyPressed && gato.Dormir(cama, "assets/Images/Dormir.mp4",
+                window.getSystemHandle(), cat.getPosition().x))
             {
-                gato.Comer("assets/Images/Comer.mp4", window.getSystemHandle());
-                food = 3;
-                foodTime = 0.0f;
-                foodWarningStarted = false;
-                for (sf::Sprite& foodSprite : foodSprites)
-                {
-                    foodSprite.setTextureRect(
-                        sf::IntRect(foodFrameWidth, 0, foodFrameWidth, foodFrameHeight));
-                }
-            }
-
-            if (sleepKeyPressed && canSleep)
-            {
-                gato.Dormir("assets/Images/Dormir.mp4", window.getSystemHandle());
                 window.setActive(true);
                 window.clear(sf::Color::Black);
                 window.display();
@@ -597,7 +494,12 @@ int main()
                     energySprite.setTextureRect(
                         sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
                 }
-                setCatIdle();
+                gato.Mover(cat, catIdleTexture, catRightTexture, catLeftTexture,
+                    catRightFrameWidth, catRightFrameHeight, catLeftFrameWidth,
+                    catLeftFrameHeight, catScale, catRightScale, catLeftScale,
+                    catGroundY, catRightGroundY, catLeftGroundY, backgroundBounds,
+                    catAnimClock, currentRightFrame, currentLeftFrame,
+                    rightFrameDuration, leftFrameDuration, false, false, 0.0f, 0.0f);
                 currentRightFrame = 0;
                 currentLeftFrame = 0;
                 catAnimClock.restart();
@@ -623,13 +525,16 @@ int main()
             }
 
             const bool isHealthy = gato.ObtenerEnergia() > 0;
-            const int currentHealthState = food == 0 ? 2 : (isHealthy ? 0 : 1);
+            const int currentHealthState = food == 0 ? 2 :
+                (food == 3 ? 3 : (isHealthy ? 0 : 1));
             if (currentHealthState != healthState)
             {
                 const std::string previousState = healthState == 0 ? "SANO" :
-                    (healthState == 1 ? "CANSADO" : "HAMBRIENTO");
+                    (healthState == 1 ? "CANSADO" :
+                    (healthState == 2 ? "HAMBRIENTO" : "NECESITA IR AL BAÑO"));
                 const std::string currentState = currentHealthState == 2 ? "HAMBRIENTO" :
-                    (currentHealthState == 0 ? "SANO" : "CANSADO");
+                    (currentHealthState == 3 ? "NECESITA IR AL BAÑO" :
+                    (currentHealthState == 0 ? "SANO" : "CANSADO"));
                 healthText.setString(previousState + " -> " + currentState);
                 healthTransitionClock.restart();
                 healthTransitioning = true;
@@ -652,7 +557,8 @@ int main()
                 if (progress >= 1.0f)
                 {
                     healthText.setString(currentHealthState == 2 ? "HAMBRIENTO" :
-                        (currentHealthState == 0 ? "SANO" : "CANSADO"));
+                        (currentHealthState == 3 ? "NECESITA IR AL BAÑO" :
+                        (currentHealthState == 0 ? "SANO" : "CANSADO")));
                     healthText.setPosition(
                         static_cast<float>(window.getSize().x) / 2.0f,
                         static_cast<float>(window.getSize().y) - 24.0f);
@@ -665,55 +571,13 @@ int main()
 
             const float catSpeed = baseCatSpeed *
                 (0.4f + 0.2f * static_cast<float>(gato.ObtenerEnergia()));
-
-            if (movingRight && !movingLeft)
-            {
-                if (cat.getTexture() != &catRightTexture)
-                {
-                    currentRightFrame = 0;
-                    setCatRightFrame(currentRightFrame);
-                    catAnimClock.restart();
-                }
-
-                if (catAnimClock.getElapsedTime().asSeconds() >= rightFrameDuration)
-                {
-                    currentRightFrame = (currentRightFrame + 1) % catRightFrameCount;
-                    setCatRightFrame(currentRightFrame);
-                    catAnimClock.restart();
-                }
-
-                const float rightLimit =
-                    backgroundBounds.left + backgroundBounds.width - cat.getGlobalBounds().width;
-                const float newX = std::min(cat.getPosition().x + catSpeed * deltaTime, rightLimit);
-                cat.setPosition(newX, catRightGroundY);
-            }
-            else if (movingLeft && !movingRight)
-            {
-                if (cat.getTexture() != &catLeftTexture)
-                {
-                    currentLeftFrame = 0;
-                    setCatLeftFrame(currentLeftFrame);
-                    catAnimClock.restart();
-                }
-
-                if (catAnimClock.getElapsedTime().asSeconds() >= leftFrameDuration)
-                {
-                    currentLeftFrame = (currentLeftFrame + 1) % catLeftFrameCount;
-                    setCatLeftFrame(currentLeftFrame);
-                    catAnimClock.restart();
-                }
-
-                const float leftLimit = backgroundBounds.left;
-                const float newX = std::max(cat.getPosition().x - catSpeed * deltaTime, leftLimit);
-                cat.setPosition(newX, catLeftGroundY);
-            }
-            else if (cat.getTexture() != &catIdleTexture)
-            {
-                setCatIdle();
-                currentRightFrame = 0;
-                currentLeftFrame = 0;
-                catAnimClock.restart();
-            }
+            gato.Mover(cat, catIdleTexture, catRightTexture, catLeftTexture,
+                catRightFrameWidth, catRightFrameHeight, catLeftFrameWidth,
+                catLeftFrameHeight, catScale, catRightScale, catLeftScale,
+                catGroundY, catRightGroundY, catLeftGroundY, backgroundBounds,
+                catAnimClock, currentRightFrame, currentLeftFrame,
+                rightFrameDuration, leftFrameDuration, movingRight, movingLeft,
+                deltaTime, catSpeed);
 
             window.draw(background);
             window.draw(cat);
@@ -721,24 +585,24 @@ int main()
             {
                 window.draw(energySprite);
             }
-            for (const sf::Sprite& foodSprite : foodSprites)
-            {
-                window.draw(foodSprite);
-            }
+            comida.Dibujar(window);
             if (food == 0)
             {
                 window.draw(foodText);
                 if (nearFood)
                 {
-                    window.draw(foodPrompt);
+                    gato.DibujarAvisoComer(window);
                 }
+            }
+            else if (nearBathroom)
+            {
+                arenero.DibujarAviso(window);
             }
             else if (gato.ObtenerEnergia() == 0)
             {
-                window.draw(sleepText);
                 if (nearBed)
                 {
-                    window.draw(sleepPrompt);
+                    gato.DibujarAvisoDormir(window);
                 }
             }
             window.draw(healthText);

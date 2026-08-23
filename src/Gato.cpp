@@ -1,4 +1,8 @@
 #include "Gato.hpp"
+#include "Cama.hpp"
+#include "Comida.hpp"
+
+#include <algorithm>
 
 #ifdef _WIN32
 #include <mfplay.h>
@@ -68,13 +72,31 @@ private:
 #endif
 
 Gato::Gato(const std::string& nombre, int edad)
-    : nombre(nombre), edad(edad), hambre(0), energia(3)
+        : nombre(nombre), edad(edad), energia(3), zonaComidaIzquierda(0.0f),
+            zonaComidaDerecha(0.0f), avisosConfigurados(false)
 {
 }
 
 void Gato::Comer()
 {
-    hambre = 0;
+}
+
+void Gato::Comer(Comida& comida)
+{
+    comida.Servir();
+}
+
+bool Gato::Comer(Comida& comida, const std::string& videoPath,
+    void* windowHandle, float catX)
+{
+    if (comida.ObtenerCantidad() != 0 || !CercaDeComida(catX))
+    {
+        return false;
+    }
+
+    ReproducirVideo(videoPath, windowHandle);
+    comida.Servir();
+    return true;
 }
 
 void Gato::Comer(const std::string& videoPath, void* windowHandle)
@@ -94,27 +116,177 @@ void Gato::Dormir(const std::string& videoPath, void* windowHandle)
     Dormir();
 }
 
+bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
+    void* windowHandle, float catX)
+{
+    if (energia != 0 || !cama.EstaCerca(catX))
+    {
+        return false;
+    }
+
+    ReproducirVideo(videoPath, windowHandle);
+    Dormir();
+    return true;
+}
+
+void Gato::ConfigurarAvisos(const sf::Font& font,
+    const sf::FloatRect& backgroundBounds)
+{
+    zonaComidaIzquierda = backgroundBounds.left + backgroundBounds.width * 0.50f;
+    zonaComidaDerecha = backgroundBounds.left + backgroundBounds.width * 0.75f;
+
+    avisoComer.setFont(font);
+    avisoComer.setString("Presiona C para comer");
+    avisoComer.setCharacterSize(22);
+    avisoComer.setFillColor(sf::Color::White);
+    avisoComer.setStyle(sf::Text::Bold);
+    avisoComer.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.61f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    avisoComer.setOrigin(
+        avisoComer.getLocalBounds().left + avisoComer.getLocalBounds().width / 2.0f,
+        avisoComer.getLocalBounds().top);
+
+    avisoDormir.setFont(font);
+    avisoDormir.setString("Presiona E para dormir");
+    avisoDormir.setCharacterSize(22);
+    avisoDormir.setFillColor(sf::Color::White);
+    avisoDormir.setStyle(sf::Text::Bold);
+    avisoDormir.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.40f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    avisoDormir.setOrigin(
+        avisoDormir.getLocalBounds().left + avisoDormir.getLocalBounds().width / 2.0f,
+        avisoDormir.getLocalBounds().top);
+    avisosConfigurados = true;
+}
+
+bool Gato::CercaDeComida(float catX) const
+{
+    return catX >= zonaComidaIzquierda && catX <= zonaComidaDerecha;
+}
+
+void Gato::DibujarAvisoComer(sf::RenderWindow& window) const
+{
+    if (avisosConfigurados)
+    {
+        window.draw(avisoComer);
+    }
+}
+
+void Gato::DibujarAvisoDormir(sf::RenderWindow& window) const
+{
+    if (avisosConfigurados)
+    {
+        window.draw(avisoDormir);
+    }
+}
+
+void Gato::Mover(sf::Sprite& cat, const sf::Texture& idleTexture,
+    const sf::Texture& rightTexture, const sf::Texture& leftTexture,
+    int rightFrameWidth, int rightFrameHeight, int leftFrameWidth,
+    int leftFrameHeight, float idleScale, float rightScale, float leftScale,
+    float groundY, float rightGroundY, float leftGroundY,
+    const sf::FloatRect& backgroundBounds, sf::Clock& animationClock,
+    int& rightFrame, int& leftFrame, float rightFrameDuration,
+    float leftFrameDuration, bool movingRight, bool movingLeft,
+    float deltaTime, float speed)
+{
+    auto setFrame = [&cat](const sf::Texture& texture, int frame,
+        int frameWidth, int frameHeight, float scale, float ground)
+    {
+        const float currentX = cat.getPosition().x;
+        cat.setTexture(texture, true);
+        cat.setTextureRect(sf::IntRect(
+            frame * frameWidth, 0, frameWidth, frameHeight));
+        cat.setOrigin(0.0f, cat.getLocalBounds().height);
+        cat.setScale(scale, scale);
+        cat.setPosition(currentX, ground);
+    };
+
+    if (movingRight && !movingLeft)
+    {
+        if (cat.getTexture() != &rightTexture)
+        {
+            rightFrame = 0;
+            setFrame(rightTexture, rightFrame, rightFrameWidth, rightFrameHeight,
+                rightScale, rightGroundY);
+            animationClock.restart();
+        }
+        if (animationClock.getElapsedTime().asSeconds() >= rightFrameDuration)
+        {
+            rightFrame = (rightFrame + 1) % 4;
+            setFrame(rightTexture, rightFrame, rightFrameWidth, rightFrameHeight,
+                rightScale, rightGroundY);
+            animationClock.restart();
+        }
+        const float rightLimit =
+            backgroundBounds.left + backgroundBounds.width - cat.getGlobalBounds().width;
+        cat.setPosition(std::min(
+            cat.getPosition().x + speed * deltaTime, rightLimit), rightGroundY);
+    }
+    else if (movingLeft && !movingRight)
+    {
+        if (cat.getTexture() != &leftTexture)
+        {
+            leftFrame = 0;
+            setFrame(leftTexture, leftFrame, leftFrameWidth, leftFrameHeight,
+                leftScale, leftGroundY);
+            animationClock.restart();
+        }
+        if (animationClock.getElapsedTime().asSeconds() >= leftFrameDuration)
+        {
+            leftFrame = (leftFrame + 1) % 4;
+            setFrame(leftTexture, leftFrame, leftFrameWidth, leftFrameHeight,
+                leftScale, leftGroundY);
+            animationClock.restart();
+        }
+        cat.setPosition(std::max(
+            cat.getPosition().x - speed * deltaTime, backgroundBounds.left), leftGroundY);
+    }
+    else if (cat.getTexture() != &idleTexture)
+    {
+        const sf::Vector2f basePosition = cat.getPosition();
+        cat.setTexture(idleTexture, true);
+        cat.setOrigin(0.0f, cat.getLocalBounds().height);
+        cat.setScale(idleScale, idleScale);
+        const float idleRightLimit =
+            backgroundBounds.left + backgroundBounds.width - cat.getGlobalBounds().width;
+        cat.setPosition(std::max(
+            backgroundBounds.left, std::min(basePosition.x, idleRightLimit)), groundY);
+        rightFrame = 0;
+        leftFrame = 0;
+        animationClock.restart();
+    }
+}
+
 void Gato::ReproducirVideo(const std::string& videoPath, void* windowHandle)
 {
 #ifdef _WIN32
-    char absoluteVideoPath[MAX_PATH];
-    const DWORD pathLength = GetFullPathNameA(
-        videoPath.c_str(), MAX_PATH, absoluteVideoPath, nullptr);
-    if (pathLength == 0 || pathLength >= MAX_PATH)
+    wchar_t relativeVideoPath[MAX_PATH];
+    const int relativePathLength = MultiByteToWideChar(
+        CP_UTF8, MB_ERR_INVALID_CHARS, videoPath.c_str(), -1,
+        relativeVideoPath, MAX_PATH);
+    if (relativePathLength == 0)
     {
         Dormir();
         return;
     }
 
     wchar_t widePath[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, absoluteVideoPath, -1,
-        widePath, MAX_PATH);
+    const DWORD pathLength = GetFullPathNameW(
+        relativeVideoPath, MAX_PATH, widePath, nullptr);
+    if (pathLength == 0 || pathLength >= MAX_PATH)
+    {
+        Dormir();
+        return;
+    }
 
     const HWND parentWindow = static_cast<HWND>(windowHandle);
     RECT clientArea;
     GetClientRect(parentWindow, &clientArea);
-    const HWND videoWindow = CreateWindowExA(
-        0, "STATIC", nullptr, WS_CHILD | WS_VISIBLE,
+    const HWND videoWindow = CreateWindowExW(
+        0, L"STATIC", nullptr, WS_CHILD | WS_VISIBLE,
         0, 0, clientArea.right, clientArea.bottom,
         parentWindow, nullptr, GetModuleHandle(nullptr), nullptr);
     if (videoWindow == nullptr)
@@ -232,9 +404,5 @@ int Gato::ObtenerEnergia() const
 }
 
 void Gato::Maullar()
-{
-}
-
-void Gato::IrAlBano()
 {
 }
