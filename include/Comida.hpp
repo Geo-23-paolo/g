@@ -13,6 +13,7 @@ public:
     int ObtenerCantidad() const;
     void ConfigurarInterfaz(const sf::Texture& texture, const sf::Font& font,
         const sf::FloatRect& backgroundBounds);
+    bool CercaDeComida(float catX) const;
     void Dibujar(sf::RenderWindow& window) const;
     void DibujarAviso(sf::RenderWindow& window) const;
 
@@ -23,4 +24,6 @@ private:
     sf::Sprite frames[3];
     sf::Text aviso;
     bool interfazConfigurada;
+    float zonaIzquierda;
+    float zonaDerecha;
 };

@@ -72,12 +72,7 @@ private:
 #endif
 
 Gato::Gato(const std::string& nombre, int edad)
-        : nombre(nombre), edad(edad), energia(3), zonaComidaIzquierda(0.0f),
-            zonaComidaDerecha(0.0f), avisosConfigurados(false)
-{
-}
-
-void Gato::Comer()
+    : nombre(nombre), edad(edad), energia(3)
 {
 }
 
@@ -89,7 +84,7 @@ void Gato::Comer(Comida& comida)
 bool Gato::Comer(Comida& comida, const std::string& videoPath,
     void* windowHandle, float catX)
 {
-    if (comida.ObtenerCantidad() != 0 || !CercaDeComida(catX))
+    if (comida.ObtenerCantidad() != 0 || !comida.CercaDeComida(catX))
     {
         return false;
     }
@@ -99,21 +94,9 @@ bool Gato::Comer(Comida& comida, const std::string& videoPath,
     return true;
 }
 
-void Gato::Comer(const std::string& videoPath, void* windowHandle)
-{
-    ReproducirVideo(videoPath, windowHandle);
-    Comer();
-}
-
 void Gato::Dormir()
 {
     energia = 3;
-}
-
-void Gato::Dormir(const std::string& videoPath, void* windowHandle)
-{
-    ReproducirVideo(videoPath, windowHandle);
-    Dormir();
 }
 
 bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
@@ -127,59 +110,6 @@ bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
     ReproducirVideo(videoPath, windowHandle);
     Dormir();
     return true;
-}
-
-void Gato::ConfigurarAvisos(const sf::Font& font,
-    const sf::FloatRect& backgroundBounds)
-{
-    zonaComidaIzquierda = backgroundBounds.left + backgroundBounds.width * 0.50f;
-    zonaComidaDerecha = backgroundBounds.left + backgroundBounds.width * 0.75f;
-
-    avisoComer.setFont(font);
-    avisoComer.setString("Presiona C para comer");
-    avisoComer.setCharacterSize(22);
-    avisoComer.setFillColor(sf::Color::White);
-    avisoComer.setStyle(sf::Text::Bold);
-    avisoComer.setPosition(
-        backgroundBounds.left + backgroundBounds.width * 0.61f,
-        backgroundBounds.top + backgroundBounds.height * 0.56f);
-    avisoComer.setOrigin(
-        avisoComer.getLocalBounds().left + avisoComer.getLocalBounds().width / 2.0f,
-        avisoComer.getLocalBounds().top);
-
-    avisoDormir.setFont(font);
-    avisoDormir.setString("Presiona E para dormir");
-    avisoDormir.setCharacterSize(22);
-    avisoDormir.setFillColor(sf::Color::White);
-    avisoDormir.setStyle(sf::Text::Bold);
-    avisoDormir.setPosition(
-        backgroundBounds.left + backgroundBounds.width * 0.40f,
-        backgroundBounds.top + backgroundBounds.height * 0.56f);
-    avisoDormir.setOrigin(
-        avisoDormir.getLocalBounds().left + avisoDormir.getLocalBounds().width / 2.0f,
-        avisoDormir.getLocalBounds().top);
-    avisosConfigurados = true;
-}
-
-bool Gato::CercaDeComida(float catX) const
-{
-    return catX >= zonaComidaIzquierda && catX <= zonaComidaDerecha;
-}
-
-void Gato::DibujarAvisoComer(sf::RenderWindow& window) const
-{
-    if (avisosConfigurados)
-    {
-        window.draw(avisoComer);
-    }
-}
-
-void Gato::DibujarAvisoDormir(sf::RenderWindow& window) const
-{
-    if (avisosConfigurados)
-    {
-        window.draw(avisoDormir);
-    }
 }
 
 void Gato::Mover(sf::Sprite& cat, const sf::Texture& idleTexture,
@@ -403,6 +333,3 @@ int Gato::ObtenerEnergia() const
     return energia;
 }
 
-void Gato::Maullar()
-{
-}

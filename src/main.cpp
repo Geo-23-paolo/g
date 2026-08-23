@@ -1,11 +1,13 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <algorithm>
+#include <vector>
 
 #include "Arenero.hpp"
 #include "Cama.hpp"
 #include "Comida.hpp"
 #include "Gato.hpp"
+#include "Veterinario.hpp"
 
 int main()
 {
@@ -15,6 +17,7 @@ int main()
     Comida comida("comida", 3.0f);
     Arenero arenero(true, "derecha");
     Cama cama;
+    Veterinario veterinario("Veterinario", "Medicina felina");
 
     sf::Texture coverTexture;
     if (!coverTexture.loadFromFile("assets/Images/gatochi.jpg"))
@@ -155,7 +158,6 @@ int main()
     comida.ConfigurarInterfaz(foodTexture, titleFont, backgroundBounds);
     arenero.ConfigurarInterfaz(titleFont, backgroundBounds);
     cama.ConfigurarInterfaz(titleFont, backgroundBounds);
-    gato.ConfigurarAvisos(titleFont, backgroundBounds);
 
     sf::Text pressText;
     pressText.setFont(titleFont);
@@ -182,6 +184,37 @@ int main()
     foodText.setOrigin(
         foodText.getLocalBounds().left + foodText.getLocalBounds().width / 2.0f,
         foodText.getLocalBounds().top);
+
+    sf::Text sickTimerText;
+    sickTimerText.setFont(titleFont);
+    sickTimerText.setCharacterSize(22);
+    sickTimerText.setFillColor(sf::Color(255, 210, 210));
+    sickTimerText.setStyle(sf::Text::Bold);
+    sickTimerText.setPosition(400.0f, 18.0f);
+    sickTimerText.setOrigin(
+        sickTimerText.getLocalBounds().left + sickTimerText.getLocalBounds().width / 2.0f,
+        sickTimerText.getLocalBounds().top);
+
+    sf::RectangleShape veterinarianOption(sf::Vector2f(300.0f, 46.0f));
+    veterinarianOption.setPosition(250.0f, 52.0f);
+    veterinarianOption.setFillColor(sf::Color(80, 30, 35, 230));
+    veterinarianOption.setOutlineThickness(2.0f);
+    veterinarianOption.setOutlineColor(sf::Color(255, 180, 180));
+
+    sf::Text veterinarianOptionText;
+    veterinarianOptionText.setFont(titleFont);
+    veterinarianOptionText.setString("Llevar al veterinario (V)");
+    veterinarianOptionText.setCharacterSize(20);
+    veterinarianOptionText.setFillColor(sf::Color::White);
+    veterinarianOptionText.setStyle(sf::Text::Bold);
+    veterinarianOptionText.setPosition(400.0f, 75.0f);
+    veterinarianOptionText.setOrigin(
+        veterinarianOptionText.getLocalBounds().left + veterinarianOptionText.getLocalBounds().width / 2.0f,
+        veterinarianOptionText.getLocalBounds().top + veterinarianOptionText.getLocalBounds().height / 2.0f);
+
+    sf::RectangleShape sadOverlay(sf::Vector2f(
+        static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y)));
+    sadOverlay.setFillColor(sf::Color(35, 45, 75, 105));
 
     sf::Text registrationTitle;
     registrationTitle.setFont(titleFont);
@@ -323,7 +356,12 @@ int main()
     const float energyDrainInterval = 30.0f;
     float movementEnergyTime = 0.0f;
     sf::Clock foodWarningClock;
+    sf::Clock zeroEnergyClock;
+    sf::Clock sickDeathClock;
     bool foodWarningStarted = false;
+    bool zeroEnergyTimerStarted = false;
+    bool sickDeathTimerStarted = false;
+    bool sick = false;
     bool gameOver = false;
     bool veterinarianScreen = false;
     int selectedGameOverOption = 0;
@@ -333,6 +371,15 @@ int main()
     const float healthTransitionOffset = 180.0f;
     int healthState = 0;
     bool healthTransitioning = false;
+    std::vector<std::string> healthHistory{"SANO"};
+
+    auto healthStateName = [](int state)
+    {
+        return state == 4 ? std::string("ENFERMO") :
+            (state == 2 ? std::string("HAMBRIENTO") :
+            (state == 3 ? std::string("NECESITA IR AL BAÑO") :
+            (state == 0 ? std::string("SANO") : std::string("CANSADO"))));
+    };
 
     auto enterGameOver = [&](const std::string& state)
     {
@@ -360,6 +407,8 @@ int main()
         bool enterKeyPressed = false;
         bool upKeyPressed = false;
         bool downKeyPressed = false;
+        bool veterinarianKeyPressed = false;
+        bool veterinarianMousePressed = false;
 
         sf::Event event{};
         while (window.pollEvent(event))
@@ -459,6 +508,19 @@ int main()
             {
                 bathroomKeyPressed = true;
             }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::V && started)
+            {
+                veterinarianKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::MouseButtonPressed &&
+                event.mouseButton.button == sf::Mouse::Left && started)
+            {
+                const sf::Vector2f mousePosition = window.mapPixelToCoords(
+                    sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
+                veterinarianMousePressed = veterinarianOption.getGlobalBounds().contains(mousePosition);
+            }
         }
 
         window.clear(sf::Color::Black);
@@ -469,6 +531,9 @@ int main()
             gato.Comer(comida);
             foodWarningStarted = false;
             movementEnergyTime = 0.0f;
+            zeroEnergyTimerStarted = false;
+            sickDeathTimerStarted = false;
+            sick = false;
             gameOver = false;
             veterinarianScreen = false;
             selectedGameOverOption = 0;
@@ -478,6 +543,8 @@ int main()
             transitioning = false;
             healthState = 0;
             healthTransitioning = false;
+            healthHistory.clear();
+            healthHistory.push_back("SANO");
             for (sf::Sprite& energySprite : energySprites)
             {
                 energySprite.setTextureRect(
@@ -501,8 +568,33 @@ int main()
 
         if (gameOver && enterKeyPressed && selectedGameOverOption == 1)
         {
+            veterinario.RevivirGato(gato, comida, window.getSystemHandle());
+            foodWarningStarted = false;
+            movementEnergyTime = 0.0f;
+            zeroEnergyTimerStarted = false;
+            sickDeathTimerStarted = false;
+            sick = false;
             gameOver = false;
-            veterinarianScreen = true;
+            veterinarianScreen = false;
+            selectedGameOverOption = 0;
+            gameOverMusic.stop();
+            music.play();
+            healthState = 0;
+            healthTransitioning = false;
+            healthHistory.clear();
+            healthHistory.push_back("SANO");
+            healthText.setString("SANO");
+            healthText.setPosition(
+                static_cast<float>(window.getSize().x) / 2.0f,
+                static_cast<float>(window.getSize().y) - 24.0f);
+            healthText.setOrigin(
+                healthText.getLocalBounds().left + healthText.getLocalBounds().width / 2.0f,
+                healthText.getLocalBounds().top + healthText.getLocalBounds().height / 2.0f);
+            for (sf::Sprite& energySprite : energySprites)
+            {
+                energySprite.setTextureRect(
+                    sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
+            }
         }
 
         if (registrationScreen)
@@ -557,8 +649,49 @@ int main()
             const bool moving = movingRight != movingLeft;
             const int energy = gato.ObtenerEnergia();
             const bool nearBed = cama.EstaCerca(cat.getPosition().x);
-            const bool nearFood = gato.CercaDeComida(cat.getPosition().x);
+            const bool nearFood = comida.CercaDeComida(cat.getPosition().x);
             const bool nearBathroom = arenero.EstaCerca(cat.getPosition().x);
+
+            if (energy == 0 && !zeroEnergyTimerStarted)
+            {
+                zeroEnergyClock.restart();
+                zeroEnergyTimerStarted = true;
+            }
+
+            if (energy > 0)
+            {
+                zeroEnergyTimerStarted = false;
+                sick = false;
+            }
+
+            const float zeroEnergySeconds = zeroEnergyTimerStarted ?
+                zeroEnergyClock.getElapsedTime().asSeconds() : 0.0f;
+            if (!sick && zeroEnergySeconds >= 30.0f)
+            {
+                sick = true;
+                sickDeathClock.restart();
+                sickDeathTimerStarted = true;
+            }
+
+            if (sick && sickDeathTimerStarted &&
+                sickDeathClock.getElapsedTime().asSeconds() >= 30.0f)
+            {
+                enterGameOver("ENFERMO");
+            }
+
+            if (sick && (veterinarianKeyPressed || veterinarianMousePressed))
+            {
+                veterinario.CurarGato(gato, window.getSystemHandle());
+                for (sf::Sprite& energySprite : energySprites)
+                {
+                    energySprite.setTextureRect(
+                        sf::IntRect(energyFrameWidth, 0, energyFrameWidth, energyFrameHeight));
+                }
+                movementEnergyTime = 0.0f;
+                zeroEnergyTimerStarted = false;
+                sickDeathTimerStarted = false;
+                sick = false;
+            }
 
             if (bathroomKeyPressed && nearBathroom)
             {
@@ -601,7 +734,7 @@ int main()
                 }
             }
 
-            if (sleepKeyPressed && gato.Dormir(cama, "assets/Images/Dormir.mp4",
+            if (!sick && sleepKeyPressed && gato.Dormir(cama, "assets/Images/Dormir.mp4",
                 window.getSystemHandle(), cat.getPosition().x))
             {
                 window.setActive(true);
@@ -644,17 +777,13 @@ int main()
             }
 
             const bool isHealthy = gato.ObtenerEnergia() > 0;
-            const int currentHealthState = food == 0 ? 2 :
-                (food == 3 ? 3 : (isHealthy ? 0 : 1));
+            const int currentHealthState = sick ? 4 : (!isHealthy ? 1 :
+                (food == 0 ? 2 : (food == 3 ? 3 : 0)));
+            const std::string currentState = healthStateName(currentHealthState);
             if (currentHealthState != healthState)
             {
-                const std::string previousState = healthState == 0 ? "SANO" :
-                    (healthState == 1 ? "CANSADO" :
-                    (healthState == 2 ? "HAMBRIENTO" : "NECESITA IR AL BAÑO"));
-                const std::string currentState = currentHealthState == 2 ? "HAMBRIENTO" :
-                    (currentHealthState == 3 ? "NECESITA IR AL BAÑO" :
-                    (currentHealthState == 0 ? "SANO" : "CANSADO"));
-                healthText.setString(previousState + " -> " + currentState);
+                healthHistory.push_back(currentState);
+                healthText.setString(currentState);
                 healthTransitionClock.restart();
                 healthTransitioning = true;
                 healthState = currentHealthState;
@@ -675,9 +804,7 @@ int main()
 
                 if (progress >= 1.0f)
                 {
-                    healthText.setString(currentHealthState == 2 ? "HAMBRIENTO" :
-                        (currentHealthState == 3 ? "NECESITA IR AL BAÑO" :
-                        (currentHealthState == 0 ? "SANO" : "CANSADO")));
+                    healthText.setString(currentState);
                     healthText.setPosition(
                         static_cast<float>(window.getSize().x) / 2.0f,
                         static_cast<float>(window.getSize().y) - 24.0f);
@@ -688,7 +815,7 @@ int main()
                 }
             }
 
-            const float catSpeed = baseCatSpeed *
+            const float catSpeed = sick ? baseCatSpeed * 0.1f : baseCatSpeed *
                 (0.4f + 0.2f * static_cast<float>(gato.ObtenerEnergia()));
             gato.Mover(cat, catIdleTexture, catRightTexture, catLeftTexture,
                 catRightFrameWidth, catRightFrameHeight, catLeftFrameWidth,
@@ -699,6 +826,10 @@ int main()
                 deltaTime, catSpeed);
 
             window.draw(background);
+            if (sick)
+            {
+                window.draw(sadOverlay);
+            }
             window.draw(cat);
             for (const sf::Sprite& energySprite : energySprites)
             {
@@ -710,21 +841,63 @@ int main()
                 window.draw(foodText);
                 if (nearFood)
                 {
-                    gato.DibujarAvisoComer(window);
+                    comida.DibujarAviso(window);
                 }
             }
             else if (nearBathroom)
             {
                 arenero.DibujarAviso(window);
             }
-            else if (gato.ObtenerEnergia() == 0)
+            else if (gato.ObtenerEnergia() == 0 && !sick)
             {
                 if (nearBed)
                 {
-                    gato.DibujarAvisoDormir(window);
+                    cama.DibujarAviso(window);
                 }
             }
+            if (gato.ObtenerEnergia() == 0 && !sick && zeroEnergyTimerStarted)
+            {
+                const int secondsRemaining = std::max(
+                    0, 30 - static_cast<int>(zeroEnergySeconds));
+                sickTimerText.setString("enferma en " + std::to_string(secondsRemaining) + "s");
+                sickTimerText.setOrigin(
+                    sickTimerText.getLocalBounds().left + sickTimerText.getLocalBounds().width / 2.0f,
+                    sickTimerText.getLocalBounds().top);
+                window.draw(sickTimerText);
+            }
+            if (sick)
+            {
+                window.draw(veterinarianOption);
+                window.draw(veterinarianOptionText);
+            }
+
             window.draw(healthText);
+            float stateLeft = healthText.getGlobalBounds().left;
+            for (std::size_t index = healthHistory.size() - 1; index > 0; --index)
+            {
+                sf::Text arrow("->", titleFont, 22);
+                arrow.setFillColor(sf::Color(220, 220, 220));
+                const float arrowWidth = arrow.getLocalBounds().width;
+                arrow.setPosition(stateLeft - 16.0f - arrowWidth / 2.0f,
+                    static_cast<float>(window.getSize().y) - 24.0f);
+                arrow.setOrigin(
+                    arrow.getLocalBounds().left + arrow.getLocalBounds().width / 2.0f,
+                    arrow.getLocalBounds().top + arrow.getLocalBounds().height / 2.0f);
+
+                sf::Text previousState(healthHistory[index - 1], titleFont, 22);
+                previousState.setFillColor(sf::Color(180, 180, 180));
+                const float previousWidth = previousState.getLocalBounds().width;
+                previousState.setPosition(
+                    arrow.getPosition().x - arrowWidth / 2.0f - 12.0f - previousWidth / 2.0f,
+                    static_cast<float>(window.getSize().y) - 24.0f);
+                previousState.setOrigin(
+                    previousState.getLocalBounds().left + previousState.getLocalBounds().width / 2.0f,
+                    previousState.getLocalBounds().top + previousState.getLocalBounds().height / 2.0f);
+
+                window.draw(previousState);
+                window.draw(arrow);
+                stateLeft = previousState.getGlobalBounds().left;
+            }
         }
         else if (transitioning)
         {

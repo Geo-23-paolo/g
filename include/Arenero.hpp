@@ -11,7 +11,6 @@ class Arenero
 public:
     Arenero(bool limpio, const std::string& ubicacion);
 
-    void Limpiar();
     void Usar();
     void ConfigurarInterfaz(const sf::Font& font, const sf::FloatRect& backgroundBounds);
     bool EstaCerca(float catX) const;

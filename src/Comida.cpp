@@ -1,7 +1,8 @@
 #include "Comida.hpp"
 
 Comida::Comida(const std::string& tipo, float cantidad)
-    : tipo(tipo), cantidad(cantidad), interfazConfigurada(false)
+    : tipo(tipo), cantidad(cantidad), interfazConfigurada(false),
+        zonaIzquierda(0.0f), zonaDerecha(0.0f)
 {
 }
 
@@ -31,6 +32,8 @@ int Comida::ObtenerCantidad() const
 void Comida::ConfigurarInterfaz(const sf::Texture& texture, const sf::Font& font,
     const sf::FloatRect& backgroundBounds)
 {
+    zonaIzquierda = backgroundBounds.left + backgroundBounds.width * 0.50f;
+    zonaDerecha = backgroundBounds.left + backgroundBounds.width * 0.75f;
     const sf::Vector2u sheetSize = texture.getSize();
     const int frameWidth = static_cast<int>(sheetSize.x / 2);
     const float scale = 0.10f;
@@ -57,6 +60,11 @@ void Comida::ConfigurarInterfaz(const sf::Texture& texture, const sf::Font& font
         aviso.getLocalBounds().top);
     interfazConfigurada = true;
     ActualizarFrames();
+}
+
+bool Comida::CercaDeComida(float catX) const
+{
+    return catX >= zonaIzquierda && catX <= zonaDerecha;
 }
 
 void Comida::Dibujar(sf::RenderWindow& window) const
