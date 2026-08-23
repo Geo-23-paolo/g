@@ -64,6 +64,12 @@ int main()
         return 1;
     }
 
+    sf::Texture registrationTexture;
+    if (!registrationTexture.loadFromFile("assets/Images/Registro.jpg"))
+    {
+        return 1;
+    }
+
     auto fitSpriteToWindow = [](sf::Sprite& sprite, const sf::RenderWindow& window)
     {
         const sf::Vector2u spriteSize = sprite.getTexture()->getSize();
@@ -80,9 +86,11 @@ int main()
     sf::Sprite background(mainTexture);
     sf::Sprite cat(catIdleTexture);
     sf::Sprite gameOverBackground(gameOverTexture);
+    sf::Sprite registrationBackground(registrationTexture);
     fitSpriteToWindow(cover, window);
     fitSpriteToWindow(background, window);
     fitSpriteToWindow(gameOverBackground, window);
+    fitSpriteToWindow(registrationBackground, window);
 
     const sf::Vector2u catSize = catIdleTexture.getSize();
     const sf::Vector2u energySheetSize = energyTexture.getSize();
@@ -175,6 +183,54 @@ int main()
         foodText.getLocalBounds().left + foodText.getLocalBounds().width / 2.0f,
         foodText.getLocalBounds().top);
 
+    sf::Text registrationTitle;
+    registrationTitle.setFont(titleFont);
+    registrationTitle.setString("Registro del veterinario");
+    registrationTitle.setCharacterSize(30);
+    registrationTitle.setFillColor(sf::Color::White);
+    registrationTitle.setStyle(sf::Text::Bold);
+    registrationTitle.setPosition(400.0f, 70.0f);
+    registrationTitle.setOrigin(
+        registrationTitle.getLocalBounds().left + registrationTitle.getLocalBounds().width / 2.0f,
+        registrationTitle.getLocalBounds().top);
+
+    sf::Text registrationLabels[3];
+    sf::Text registrationValues[3];
+    const char* registrationLabelText[3] = {"Nombre", "Edad", "Genero"};
+    for (int index = 0; index < 3; ++index)
+    {
+        registrationLabels[index].setFont(titleFont);
+        registrationLabels[index].setString(registrationLabelText[index]);
+        registrationLabels[index].setCharacterSize(22);
+        registrationLabels[index].setFillColor(sf::Color::White);
+        registrationLabels[index].setPosition(190.0f, 175.0f + index * 100.0f);
+
+        registrationValues[index].setFont(titleFont);
+        registrationValues[index].setCharacterSize(22);
+        registrationValues[index].setFillColor(sf::Color::Black);
+        registrationValues[index].setPosition(370.0f, 175.0f + index * 100.0f);
+    }
+
+    sf::RectangleShape registrationFields[3];
+    for (int index = 0; index < 3; ++index)
+    {
+        registrationFields[index].setSize(sf::Vector2f(300.0f, 46.0f));
+        registrationFields[index].setPosition(360.0f, 165.0f + index * 100.0f);
+        registrationFields[index].setFillColor(sf::Color(255, 255, 255, 220));
+        registrationFields[index].setOutlineThickness(3.0f);
+        registrationFields[index].setOutlineColor(sf::Color::White);
+    }
+
+    sf::Text registrationInstruction;
+    registrationInstruction.setFont(titleFont);
+    registrationInstruction.setString("Completa los datos y presiona Enter");
+    registrationInstruction.setCharacterSize(20);
+    registrationInstruction.setFillColor(sf::Color::White);
+    registrationInstruction.setPosition(400.0f, 510.0f);
+    registrationInstruction.setOrigin(
+        registrationInstruction.getLocalBounds().left + registrationInstruction.getLocalBounds().width / 2.0f,
+        registrationInstruction.getLocalBounds().top);
+
     sf::Text gameOverStateText;
     gameOverStateText.setFont(titleFont);
     gameOverStateText.setCharacterSize(24);
@@ -257,6 +313,9 @@ int main()
     sf::Clock healthTransitionClock;
     bool transitioning = false;
     bool started = false;
+    bool registrationScreen = false;
+    int selectedRegistrationField = 0;
+    std::string registrationValuesText[3];
     int currentRightFrame = 0;
     int currentLeftFrame = 0;
     const float rightFrameDuration = 0.10f;
@@ -280,6 +339,9 @@ int main()
         if (!gameOver)
         {
             gameOverState = state;
+            gato.ReproducirVideo(
+                "assets/Images/video Angel.mp4",
+                window.getSystemHandle());
             gameOver = true;
             music.stop();
             gameOverMusic.play();
@@ -308,8 +370,47 @@ int main()
             }
 
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space &&
-                !transitioning && !started && !gameOver)
+                !transitioning && !started && !registrationScreen && !gameOver)
             {
+                registrationScreen = true;
+            }
+
+            if (event.type == sf::Event::MouseButtonPressed &&
+                event.mouseButton.button == sf::Mouse::Left && registrationScreen)
+            {
+                const sf::Vector2f mousePosition = window.mapPixelToCoords(
+                    sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
+                for (int index = 0; index < 3; ++index)
+                {
+                    if (registrationFields[index].getGlobalBounds().contains(mousePosition))
+                    {
+                        selectedRegistrationField = index;
+                    }
+                }
+            }
+
+            if (event.type == sf::Event::TextEntered && registrationScreen &&
+                event.text.unicode >= 32 && event.text.unicode < 127 &&
+                registrationValuesText[selectedRegistrationField].size() < 24)
+            {
+                registrationValuesText[selectedRegistrationField] +=
+                    static_cast<char>(event.text.unicode);
+            }
+
+            if (event.type == sf::Event::KeyPressed && registrationScreen &&
+                event.key.code == sf::Keyboard::BackSpace &&
+                !registrationValuesText[selectedRegistrationField].empty())
+            {
+                registrationValuesText[selectedRegistrationField].pop_back();
+            }
+
+            if (event.type == sf::Event::KeyPressed && registrationScreen &&
+                event.key.code == sf::Keyboard::Enter &&
+                !registrationValuesText[0].empty() &&
+                !registrationValuesText[1].empty() &&
+                !registrationValuesText[2].empty())
+            {
+                registrationScreen = false;
                 transitioning = true;
                 transitionClock.restart();
             }
@@ -404,7 +505,25 @@ int main()
             veterinarianScreen = true;
         }
 
-        if (veterinarianScreen)
+        if (registrationScreen)
+        {
+            for (int index = 0; index < 3; ++index)
+            {
+                registrationValues[index].setString(registrationValuesText[index]);
+                registrationFields[index].setOutlineColor(
+                    selectedRegistrationField == index ? sf::Color::Yellow : sf::Color::White);
+            }
+            window.draw(registrationBackground);
+            window.draw(registrationTitle);
+            for (int index = 0; index < 3; ++index)
+            {
+                window.draw(registrationLabels[index]);
+                window.draw(registrationFields[index]);
+                window.draw(registrationValues[index]);
+            }
+            window.draw(registrationInstruction);
+        }
+        else if (veterinarianScreen)
         {
             window.clear(sf::Color::Black);
             window.draw(veterinarianText);
