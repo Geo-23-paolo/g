@@ -695,7 +695,8 @@ int main()
 
             if (bathroomKeyPressed && nearBathroom)
             {
-                arenero.Usar(comida, gato, window.getSystemHandle());
+                gato.IrAlBano(arenero, comida, window.getSystemHandle(),
+                    cat.getPosition().x);
             }
 
             if (eatKeyPressed && gato.Comer(comida, "assets/Images/Comer.mp4",

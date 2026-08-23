@@ -1,4 +1,5 @@
 #include "Gato.hpp"
+#include "Arenero.hpp"
 #include "Cama.hpp"
 #include "Comida.hpp"
 
@@ -92,6 +93,17 @@ bool Gato::Comer(Comida& comida, const std::string& videoPath,
     ReproducirVideo(videoPath, windowHandle);
     comida.Servir();
     return true;
+}
+
+bool Gato::IrAlBano(Arenero& arenero, Comida& comida,
+    void* windowHandle, float catX)
+{
+    if (!arenero.EstaCerca(catX))
+    {
+        return false;
+    }
+
+    return arenero.Usar(comida, *this, windowHandle);
 }
 
 void Gato::Dormir()

@@ -5,6 +5,7 @@
 
 class Cama;
 class Comida;
+class Arenero;
 
 class Gato
 {
@@ -13,6 +14,8 @@ public:
 
     void Comer(Comida& comida);
     bool Comer(Comida& comida, const std::string& videoPath,
+        void* windowHandle, float catX);
+    bool IrAlBano(Arenero& arenero, Comida& comida,
         void* windowHandle, float catX);
     void Dormir();
     bool Dormir(const Cama& cama, const std::string& videoPath,
