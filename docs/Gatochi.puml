@@ -4,8 +4,29 @@
 
 title Diagrama UML - Gatochi
 
-class Gato {
+class Juego {
+    + Juego()
+    + Iniciar() : void
+    + MostrarSegundaVentanaRegistro() : void
+}
+
+class Personaje {
     - nombre : String
+
+    + Personaje(nombre : String)
+    + ObtenerNombre() : String
+    + CambiarNombre(nuevoNombre : String) : void
+}
+
+class Dueno {
+    - generoGato : String
+
+    + Dueno(nombre : String)
+    + RegistrarGato(nombre : String, edadTexto : String, genero : String, gatoRegistrado : Gato) : bool
+}
+
+
+class Gato {
     - edad : int
     - energia : int
 
@@ -58,10 +79,15 @@ class Veterinario {
 
 ' ===== RELACIONES =====
 
-Gato --> Comida : usa / come
-Gato ..> Arenero : usa
-Gato --> Cama : tiene
-Veterinario ..> Gato : cura / revive
-Veterinario ..> Comida : repone
+
+Juego *-- Personaje : tiene personajes
+Gato --|> Personaje
+Dueno --|> Personaje
+Dueno *-- Gato : tiene
+Gato o-- Comida : usa / come
+Gato o-- Arenero : usa
+Gato o-- Cama : usa
+Veterinario o-- Gato : cura / revive
+Veterinario o-- Comida : repone
 
 @enduml

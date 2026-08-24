@@ -6,13 +6,17 @@
 #include "Arenero.hpp"
 #include "Cama.hpp"
 #include "Comida.hpp"
+#include "Dueno.hpp"
 #include "Gato.hpp"
+#include "GatochiImplementaciones.hpp"
+#include "Juego.hpp"
 #include "Veterinario.hpp"
 
-int main()
+int EjecutarJuego()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "Gatochi");
     window.setKeyRepeatEnabled(false);
+    Dueno dueno("Jugador");
     Gato gato("Gatochi", 1);
     Comida comida("comida", 3.0f);
     Arenero arenero(true, "derecha");
@@ -255,8 +259,10 @@ int main()
     }
 
     sf::Text registrationInstruction;
+    const std::string registrationInstructionDefault =
+        "Completa los datos y presiona Enter";
     registrationInstruction.setFont(titleFont);
-    registrationInstruction.setString("Completa los datos y presiona Enter");
+    registrationInstruction.setString(registrationInstructionDefault);
     registrationInstruction.setCharacterSize(20);
     registrationInstruction.setFillColor(sf::Color::White);
     registrationInstruction.setPosition(400.0f, 510.0f);
@@ -444,6 +450,7 @@ int main()
             {
                 registrationValuesText[selectedRegistrationField] +=
                     static_cast<char>(event.text.unicode);
+                registrationInstruction.setString(registrationInstructionDefault);
             }
 
             if (event.type == sf::Event::KeyPressed && registrationScreen &&
@@ -451,6 +458,7 @@ int main()
                 !registrationValuesText[selectedRegistrationField].empty())
             {
                 registrationValuesText[selectedRegistrationField].pop_back();
+                registrationInstruction.setString(registrationInstructionDefault);
             }
 
             if (event.type == sf::Event::KeyPressed && registrationScreen &&
@@ -459,9 +467,22 @@ int main()
                 !registrationValuesText[1].empty() &&
                 !registrationValuesText[2].empty())
             {
-                registrationScreen = false;
-                transitioning = true;
-                transitionClock.restart();
+                if (dueno.RegistrarGato(
+                        registrationValuesText[0],
+                        registrationValuesText[1],
+                        registrationValuesText[2],
+                        gato))
+                {
+                    registrationScreen = false;
+                    transitioning = true;
+                    transitionClock.restart();
+                    registrationInstruction.setString(registrationInstructionDefault);
+                }
+                else
+                {
+                    registrationInstruction.setString(
+                        "Edad invalida: ingresa un numero entre 1 y 30");
+                }
             }
 
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space && gameOver && !veterinarianScreen)
@@ -936,4 +957,9 @@ int main()
     }
 
     return 0;
+}
+
+int main()
+{
+    return EjecutarJuego();
 }

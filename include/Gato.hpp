@@ -3,11 +3,13 @@
 #include <SFML/Graphics.hpp>
 #include <string>
 
+#include "Personaje.hpp"
+
 class Cama;
 class Comida;
 class Arenero;
 
-class Gato
+class Gato : public Personaje
 {
 public:
     Gato(const std::string& nombre, int edad);
@@ -34,7 +36,6 @@ public:
         float deltaTime, float speed);
 
 private:
-    std::string nombre;
     int edad;
     int energia;
 };

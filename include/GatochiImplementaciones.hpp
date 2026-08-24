@@ -1,17 +1,22 @@
-#include "Gato.hpp"
+#pragma once
+
 #include "Arenero.hpp"
 #include "Cama.hpp"
 #include "Comida.hpp"
+#include "Dueno.hpp"
+#include "Gato.hpp"
+#include "Veterinario.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 
 #ifdef _WIN32
-#include <mfplay.h>
 #include <mfapi.h>
-#include <windows.h>
-#include <atomic>
+#include <mfplay.h>
 #include <propvarutil.h>
-#include <string>
+#include <windows.h>
+
+#include <atomic>
 
 namespace
 {
@@ -72,17 +77,224 @@ private:
 }
 #endif
 
-Gato::Gato(const std::string& nombre, int edad)
-    : nombre(nombre), edad(edad), energia(3)
+inline Arenero::Arenero(bool limpio, const std::string& ubicacion)
+    : limpio(limpio), ubicacion(ubicacion), zonaIzquierda(0.0f),
+      zonaDerecha(0.0f), interfazConfigurada(false)
 {
 }
 
-void Gato::Comer(Comida& comida)
+inline void Arenero::Usar()
+{
+    limpio = false;
+}
+
+inline void Arenero::ConfigurarInterfaz(const sf::Font& font,
+    const sf::FloatRect& backgroundBounds)
+{
+    zonaIzquierda = backgroundBounds.left + backgroundBounds.width * 0.75f;
+    zonaDerecha = backgroundBounds.left + backgroundBounds.width * 0.95f;
+    aviso.setFont(font);
+    aviso.setString("Presiona M para ir al baño");
+    aviso.setCharacterSize(22);
+    aviso.setFillColor(sf::Color::White);
+    aviso.setStyle(sf::Text::Bold);
+    aviso.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.78f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    aviso.setOrigin(
+        aviso.getLocalBounds().left + aviso.getLocalBounds().width / 2.0f,
+        aviso.getLocalBounds().top);
+    interfazConfigurada = true;
+}
+
+inline bool Arenero::EstaCerca(float catX) const
+{
+    return catX >= zonaIzquierda && catX <= zonaDerecha;
+}
+
+inline bool Arenero::Usar(Comida& comida)
+{
+    if (!comida.Consumir())
+    {
+        return false;
+    }
+
+    Usar();
+    return true;
+}
+
+inline bool Arenero::Usar(Comida& comida, Gato& gato, void* windowHandle)
+{
+    if (comida.ObtenerCantidad() == 0)
+    {
+        return false;
+    }
+
+    gato.ReproducirVideo("assets/Images/Ir al baño.mp4", windowHandle);
+    return Usar(comida);
+}
+
+inline void Arenero::DibujarAviso(sf::RenderWindow& window) const
+{
+    if (interfazConfigurada)
+    {
+        window.draw(aviso);
+    }
+}
+
+inline Cama::Cama()
+    : zonaDerecha(0.0f), interfazConfigurada(false)
+{
+}
+
+inline void Cama::ConfigurarInterfaz(const sf::Font& font,
+    const sf::FloatRect& backgroundBounds)
+{
+    zonaDerecha = backgroundBounds.left + backgroundBounds.width * 0.22f;
+    aviso.setFont(font);
+    aviso.setString("Presiona E para dormir");
+    aviso.setCharacterSize(22);
+    aviso.setFillColor(sf::Color::White);
+    aviso.setStyle(sf::Text::Bold);
+    aviso.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.40f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    aviso.setOrigin(
+        aviso.getLocalBounds().left + aviso.getLocalBounds().width / 2.0f,
+        aviso.getLocalBounds().top);
+    interfazConfigurada = true;
+}
+
+inline bool Cama::EstaCerca(float catX) const
+{
+    return catX <= zonaDerecha;
+}
+
+inline void Cama::DibujarAviso(sf::RenderWindow& window) const
+{
+    if (interfazConfigurada)
+    {
+        window.draw(aviso);
+    }
+}
+
+inline Comida::Comida(const std::string& tipo, float cantidad)
+    : tipo(tipo), cantidad(cantidad), interfazConfigurada(false),
+      zonaIzquierda(0.0f), zonaDerecha(0.0f)
+{
+}
+
+inline void Comida::Servir()
+{
+    cantidad = 3;
+    ActualizarFrames();
+}
+
+inline bool Comida::Consumir()
+{
+    if (cantidad <= 0)
+    {
+        return false;
+    }
+
+    --cantidad;
+    ActualizarFrames();
+    return true;
+}
+
+inline int Comida::ObtenerCantidad() const
+{
+    return static_cast<int>(cantidad);
+}
+
+inline void Comida::ConfigurarInterfaz(const sf::Texture& texture,
+    const sf::Font& font, const sf::FloatRect& backgroundBounds)
+{
+    zonaIzquierda = backgroundBounds.left + backgroundBounds.width * 0.50f;
+    zonaDerecha = backgroundBounds.left + backgroundBounds.width * 0.75f;
+    const sf::Vector2u sheetSize = texture.getSize();
+    const int frameWidth = static_cast<int>(sheetSize.x / 2);
+    const float scale = 0.10f;
+    const float margin = 20.0f;
+
+    for (int index = 0; index < 3; ++index)
+    {
+        frames[index].setTexture(texture);
+        frames[index].setScale(scale, scale);
+        frames[index].setPosition(
+            margin + frameWidth * scale * static_cast<float>(index), margin);
+    }
+
+    aviso.setFont(font);
+    aviso.setString("Presiona C para comer");
+    aviso.setCharacterSize(22);
+    aviso.setFillColor(sf::Color::White);
+    aviso.setStyle(sf::Text::Bold);
+    aviso.setPosition(
+        backgroundBounds.left + backgroundBounds.width * 0.61f,
+        backgroundBounds.top + backgroundBounds.height * 0.56f);
+    aviso.setOrigin(
+        aviso.getLocalBounds().left + aviso.getLocalBounds().width / 2.0f,
+        aviso.getLocalBounds().top);
+    interfazConfigurada = true;
+    ActualizarFrames();
+}
+
+inline bool Comida::CercaDeComida(float catX) const
+{
+    return catX >= zonaIzquierda && catX <= zonaDerecha;
+}
+
+inline void Comida::Dibujar(sf::RenderWindow& window) const
+{
+    if (!interfazConfigurada)
+    {
+        return;
+    }
+
+    for (const sf::Sprite& frame : frames)
+    {
+        window.draw(frame);
+    }
+}
+
+inline void Comida::DibujarAviso(sf::RenderWindow& window) const
+{
+    if (interfazConfigurada)
+    {
+        window.draw(aviso);
+    }
+}
+
+inline void Comida::ActualizarFrames()
+{
+    if (!interfazConfigurada)
+    {
+        return;
+    }
+
+    const sf::Vector2u sheetSize = frames[0].getTexture()->getSize();
+    const int frameWidth = static_cast<int>(sheetSize.x / 2);
+    const int frameHeight = static_cast<int>(sheetSize.y);
+    const int amount = ObtenerCantidad();
+    for (int index = 0; index < 3; ++index)
+    {
+        frames[index].setTextureRect(sf::IntRect(
+            index < amount ? frameWidth : 0, 0, frameWidth, frameHeight));
+    }
+}
+
+inline Gato::Gato(const std::string& nombre, int edad)
+    : Personaje(nombre), edad(edad), energia(3)
+{
+}
+
+inline void Gato::Comer(Comida& comida)
 {
     comida.Servir();
 }
 
-bool Gato::Comer(Comida& comida, const std::string& videoPath,
+inline bool Gato::Comer(Comida& comida, const std::string& videoPath,
     void* windowHandle, float catX)
 {
     if (comida.ObtenerCantidad() != 0 || !comida.CercaDeComida(catX))
@@ -95,7 +307,7 @@ bool Gato::Comer(Comida& comida, const std::string& videoPath,
     return true;
 }
 
-bool Gato::IrAlBano(Arenero& arenero, Comida& comida,
+inline bool Gato::IrAlBano(Arenero& arenero, Comida& comida,
     void* windowHandle, float catX)
 {
     if (!arenero.EstaCerca(catX))
@@ -106,12 +318,12 @@ bool Gato::IrAlBano(Arenero& arenero, Comida& comida,
     return arenero.Usar(comida, *this, windowHandle);
 }
 
-void Gato::Dormir()
+inline void Gato::Dormir()
 {
     energia = 3;
 }
 
-bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
+inline bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
     void* windowHandle, float catX)
 {
     if (energia != 0 || !cama.EstaCerca(catX))
@@ -124,7 +336,7 @@ bool Gato::Dormir(const Cama& cama, const std::string& videoPath,
     return true;
 }
 
-void Gato::Mover(sf::Sprite& cat, const sf::Texture& idleTexture,
+inline void Gato::Mover(sf::Sprite& cat, const sf::Texture& idleTexture,
     const sf::Texture& rightTexture, const sf::Texture& leftTexture,
     int rightFrameWidth, int rightFrameHeight, int leftFrameWidth,
     int leftFrameHeight, float idleScale, float rightScale, float leftScale,
@@ -202,7 +414,7 @@ void Gato::Mover(sf::Sprite& cat, const sf::Texture& idleTexture,
     }
 }
 
-void Gato::ReproducirVideo(const std::string& videoPath, void* windowHandle)
+inline void Gato::ReproducirVideo(const std::string& videoPath, void* windowHandle)
 {
 #ifdef _WIN32
     wchar_t relativeVideoPath[MAX_PATH];
@@ -332,7 +544,7 @@ void Gato::ReproducirVideo(const std::string& videoPath, void* windowHandle)
 #endif
 }
 
-void Gato::PerderEnergia()
+inline void Gato::PerderEnergia()
 {
     if (energia > 0)
     {
@@ -340,8 +552,75 @@ void Gato::PerderEnergia()
     }
 }
 
-int Gato::ObtenerEnergia() const
+inline int Gato::ObtenerEnergia() const
 {
     return energia;
 }
 
+inline Veterinario::Veterinario(const std::string& nombre,
+    const std::string& especialidad)
+    : nombre(nombre), especialidad(especialidad)
+{
+}
+
+inline void Veterinario::CurarGato(Gato& gato, void* windowHandle)
+{
+    gato.ReproducirVideo("assets/Images/Curar Gato.mp4", windowHandle);
+    gato.Dormir();
+}
+
+inline void Veterinario::RevivirGato(Gato& gato, Comida& comida, void* windowHandle)
+{
+    gato.ReproducirVideo("assets/Images/Revivir.mp4", windowHandle);
+    gato.Dormir();
+    comida.Servir();
+}
+
+inline Dueno::Dueno(const std::string& nombre)
+    : Personaje(nombre)
+{
+}
+
+inline bool Dueno::RegistrarGato(const std::string& nombreGato,
+    const std::string& edadTexto,
+    const std::string& genero,
+    Gato& gatoRegistrado)
+{
+    if (nombreGato.empty() || edadTexto.empty() || genero.empty())
+    {
+        return false;
+    }
+
+    try
+    {
+        std::size_t processedChars = 0;
+        int edad = std::stoi(edadTexto, &processedChars);
+        if (processedChars != edadTexto.size())
+        {
+            return false;
+        }
+
+        if (edad < 1 || edad > 30)
+        {
+            return false;
+        }
+
+        gatoRegistrado = Gato(nombreGato, edad);
+        generoGato = genero;
+        return true;
+    }
+    catch (const std::exception&)
+    {
+        return false;
+    }
+}
+
+inline const std::string& Dueno::ObtenerNombre() const
+{
+    return Personaje::ObtenerNombre();
+}
+
+inline const std::string& Dueno::ObtenerGeneroGato() const
+{
+    return generoGato;
+}
