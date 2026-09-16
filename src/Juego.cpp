@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "Arenero.hpp"
@@ -77,6 +78,24 @@ int EjecutarJuego()
         return 1;
     }
 
+    sf::Texture labyrinthTexture;
+    if (!labyrinthTexture.loadFromFile("assets/Images/Laberinto.jpg"))
+    {
+        return 1;
+    }
+
+    sf::Texture catUpTexture;
+    if (!catUpTexture.loadFromFile("assets/Images/Caminado hacia arriba.png"))
+    {
+        return 1;
+    }
+
+    sf::Texture catDownTexture;
+    if (!catDownTexture.loadFromFile("assets/Images/Caminado hacia abajo.png"))
+    {
+        return 1;
+    }
+
     auto fitSpriteToWindow = [](sf::Sprite& sprite, const sf::RenderWindow& window)
     {
         const sf::Vector2u spriteSize = sprite.getTexture()->getSize();
@@ -94,10 +113,96 @@ int EjecutarJuego()
     sf::Sprite cat(catIdleTexture);
     sf::Sprite gameOverBackground(gameOverTexture);
     sf::Sprite registrationBackground(registrationTexture);
+    sf::Sprite labyrinthBackground(labyrinthTexture);
     fitSpriteToWindow(cover, window);
     fitSpriteToWindow(background, window);
     fitSpriteToWindow(gameOverBackground, window);
     fitSpriteToWindow(registrationBackground, window);
+    fitSpriteToWindow(labyrinthBackground, window);
+
+    const sf::FloatRect labyrinthBounds = labyrinthBackground.getGlobalBounds();
+    const std::vector<std::string> labyrinthMap = {
+        "0000000000000000000000000000000000000000000000000000000000000000000000",
+        "0000000000000000000000000000000000000000000000000000000000000000000000",
+        "0111111111111111111111111111111111111111111111111111111111111111111110",
+        "0111111111111111111111111111111111111111111111111111111111111111111110",
+        "0111111111111111111111111111111111111111111111111111111111111111111110",
+        "0111110000011111111111110000001110111011100000001111110111111000001110",
+        "0111110000011111101111110000001110111011100000001111110111111000001110",
+        "0111111111111111101111110000001110111011100000001111110111111111111110",
+        "0111111111111111101111111111111111111111111111111111110111111111111110",
+        "0111111111111111101111111111111111111111111111111111110111111111111110",
+        "0111000111111111111111111111111111111111111111111111110111111111111110",
+        "0111111111110111111110111000000000000000000001111001111111011110111110",
+        "0111111111110111111110111001111111111111111001111001111111011111111110",
+        "0111111111110111111110111001111111111111111001111001111111011111111110",
+        "0000000011110111111110111000111111111111111001111001111111011111111110",
+        "1111110011110111000000111001111111111111111001111000000111011110000000",
+        "1111110011110111111111111001111111111111111001111000000111011110111111",
+        "1111110011110111111111111001111111111111111001111111111111011110111111",
+        "1111110011110111111111111001111111111111111001111111111111011110111111",
+        "0000000011110111111111111001111111111111111001111111111111011110111111",
+        "1111111111111111111111111111111111111111111111111111111111111110000000",
+        "1111111111111111111110111111111111111111111111110111111111111111111111",
+        "1111111111111111111111111111111111111111111111111111111111111111111111",
+        "1111111111111111111111111001111111111111111001111111111111111111111111",
+        "0000000011110111111111111001111111111111111001111111111111011110000000",
+        "1111111011110111111111111001111111111111111001111111111111011110111111",
+        "1111111011110111100000111001111111111111111001110000011111011110111111",
+        "1111111011110111111111111001111111111111111001110000011111011110111111",
+        "1111111011110111111111111000000001111100000001111111111111011110111111",
+        "0000000011110111111111111101111111111111111011111111111111011110000000",
+        "0111111111110111111111111111111111111111111111111111111111011111111110",
+        "0111111111110111111111111111111111111111111111111111111111011111111110",
+        "0111111111111111111101111111111111111111111111111111111111011111111110",
+        "0111110011111111111101111111111111111111111111111101111111111110111110",
+        "0111111111111111111101111101111111111111111111111101111111111111111110",
+        "0111111111111111111101111101111111111111111110111101111111111111111110",
+        "0111111111110111011101111101111000000000011110111101111011111111111110",
+        "0111100011110111011100111100000111110111111110111101111011111110001110",
+        "0111111111110000011111111100000111110111111110111101111000011111111110",
+        "0111111111110000011111111111111111110111111110111001111000011111111110",
+        "0111111111111111111111111111111111110111111111111111111111111111111110",
+        "0111111111111111111111111111111111110111111111111111111111111111111110",
+        "0111111111111111111111111111111111111111111111111111111111111111111110",
+        "0000000000000000000000000000000001111111000000000000000000000000000000",
+        "0000000000000000000000000000000001111111000000000000000000000000000000",
+    };
+    const int labyrinthRows = static_cast<int>(labyrinthMap.size());
+    const int labyrinthColumns = static_cast<int>(labyrinthMap.front().size());
+    auto labyrinthCollides = [&](const sf::FloatRect& bounds)
+    {
+        const float leftPixel = (bounds.left - labyrinthBounds.left) /
+            labyrinthBounds.width * labyrinthColumns;
+        const float topPixel = (bounds.top - labyrinthBounds.top) /
+            labyrinthBounds.height * labyrinthRows;
+        const float rightPixel = (bounds.left + bounds.width - labyrinthBounds.left) /
+            labyrinthBounds.width * labyrinthColumns;
+        const float bottomPixel = (bounds.top + bounds.height - labyrinthBounds.top) /
+            labyrinthBounds.height * labyrinthRows;
+        if (rightPixel < 0.0f || bottomPixel < 0.0f ||
+            leftPixel >= labyrinthColumns || topPixel >= labyrinthRows)
+        {
+            return true;
+        }
+        const int left = std::max(0, static_cast<int>(std::floor(leftPixel)));
+        const int top = std::max(0, static_cast<int>(std::floor(topPixel)));
+        const int right = std::min(
+            labyrinthColumns - 1, static_cast<int>(std::ceil(rightPixel)));
+        const int bottom = std::min(
+            labyrinthRows - 1, static_cast<int>(std::ceil(bottomPixel)));
+        for (int row = top; row <= bottom; ++row)
+        {
+            for (int column = left; column <= right; ++column)
+            {
+                if (labyrinthMap[row][column] == '0')
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
 
     const sf::Vector2u catSize = catIdleTexture.getSize();
     const sf::Vector2u energySheetSize = energyTexture.getSize();
@@ -111,6 +216,14 @@ int EjecutarJuego()
     const int catLeftFrameCount = 4;
     const int catLeftFrameWidth = static_cast<int>(catLeftSheetSize.x / catLeftFrameCount);
     const int catLeftFrameHeight = static_cast<int>(catLeftSheetSize.y);
+    const sf::Vector2u catUpSheetSize = catUpTexture.getSize();
+    const sf::Vector2u catDownSheetSize = catDownTexture.getSize();
+    const int catUpFrameCount = 4;
+    const int catDownFrameCount = 4;
+    const int catUpFrameWidth = static_cast<int>(catUpSheetSize.x / catUpFrameCount);
+    const int catUpFrameHeight = static_cast<int>(catUpSheetSize.y);
+    const int catDownFrameWidth = static_cast<int>(catDownSheetSize.x / catDownFrameCount);
+    const int catDownFrameHeight = static_cast<int>(catDownSheetSize.y);
     const sf::FloatRect backgroundBounds = background.getGlobalBounds();
     const float catScale = std::min(
         (backgroundBounds.width * 0.16f) / static_cast<float>(catSize.x),
@@ -126,6 +239,33 @@ int EjecutarJuego()
     const float leftAnimYOffset = 130.0f;
     const float catRightGroundY = catGroundY + rightAnimYOffset;
     const float catLeftGroundY = catGroundY + leftAnimYOffset;
+    const float labyrinthCatScale = std::min(
+        (labyrinthBounds.width * 0.11f) / static_cast<float>(catSize.x),
+        (labyrinthBounds.height * 0.22f) / static_cast<float>(catSize.y));
+    const float labyrinthCatIdleScale = labyrinthCatScale * 0.49f;
+    const float labyrinthIdleVisualYOffset = -35.0f;
+    const float labyrinthCatVisualHeight =
+        static_cast<float>(catSize.y) * labyrinthCatScale;
+    const float labyrinthCatRightScale =
+        (labyrinthCatVisualHeight / static_cast<float>(catRightFrameHeight)) * 1.35f;
+    const float labyrinthCatLeftScale =
+        (labyrinthCatVisualHeight / static_cast<float>(catLeftFrameHeight)) * 1.35f;
+    const float labyrinthCatUpScale =
+        (labyrinthCatVisualHeight / static_cast<float>(catUpFrameHeight)) * 1.35f;
+    const float labyrinthCatDownScale =
+        (labyrinthCatVisualHeight / static_cast<float>(catDownFrameHeight)) * 1.35f;
+    auto labyrinthCollisionBounds = [&](const sf::Sprite& sprite)
+    {
+        const sf::FloatRect visualBounds = sprite.getGlobalBounds();
+        const float width = labyrinthBounds.width /
+            static_cast<float>(labyrinthColumns);
+        const float height = labyrinthBounds.height /
+            static_cast<float>(labyrinthRows);
+        return sf::FloatRect(
+            visualBounds.left + (visualBounds.width - width) / 2.0f,
+            visualBounds.top + (visualBounds.height - height) / 2.0f,
+            width, height);
+    };
     cat.setOrigin(0.0f, cat.getLocalBounds().height);
     cat.setScale(catScale, catScale);
     cat.setPosition(
@@ -215,6 +355,17 @@ int EjecutarJuego()
     veterinarianOptionText.setOrigin(
         veterinarianOptionText.getLocalBounds().left + veterinarianOptionText.getLocalBounds().width / 2.0f,
         veterinarianOptionText.getLocalBounds().top + veterinarianOptionText.getLocalBounds().height / 2.0f);
+
+    sf::Text labyrinthOptionText;
+    labyrinthOptionText.setFont(titleFont);
+    labyrinthOptionText.setString("Presiona P para ir a jugar");
+    labyrinthOptionText.setCharacterSize(22);
+    labyrinthOptionText.setFillColor(sf::Color::White);
+    labyrinthOptionText.setStyle(sf::Text::Bold);
+    labyrinthOptionText.setPosition(400.0f, 112.0f);
+    labyrinthOptionText.setOrigin(
+        labyrinthOptionText.getLocalBounds().left + labyrinthOptionText.getLocalBounds().width / 2.0f,
+        labyrinthOptionText.getLocalBounds().top);
 
     sf::RectangleShape sadOverlay(sf::Vector2f(
         static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y)));
@@ -357,8 +508,110 @@ int EjecutarJuego()
     std::string registrationValuesText[3];
     int currentRightFrame = 0;
     int currentLeftFrame = 0;
+    bool labyrinthIdleOffsetApplied = false;
     const float rightFrameDuration = 0.10f;
     const float leftFrameDuration = 0.10f;
+    auto moveLabyrinthCat = [&](bool movingRight, bool movingLeft,
+        bool movingUp, bool movingDown, float deltaTime)
+    {
+        const bool movingHorizontal = movingRight != movingLeft;
+        const bool movingVertical = movingUp != movingDown;
+        const sf::Texture* movementTexture = nullptr;
+        int* currentFrame = nullptr;
+        int frameWidth = 0;
+        int frameHeight = 0;
+        float movementScale = labyrinthCatScale;
+
+        if (movingVertical)
+        {
+            movementTexture = movingUp ? &catUpTexture : &catDownTexture;
+            currentFrame = movingUp ? &currentLeftFrame : &currentRightFrame;
+            frameWidth = movingUp ? catUpFrameWidth : catDownFrameWidth;
+            frameHeight = movingUp ? catUpFrameHeight : catDownFrameHeight;
+            movementScale = movingUp ? labyrinthCatUpScale : labyrinthCatDownScale;
+        }
+        else if (movingHorizontal)
+        {
+            movementTexture = movingRight ? &catRightTexture : &catLeftTexture;
+            currentFrame = movingRight ? &currentRightFrame : &currentLeftFrame;
+            frameWidth = movingRight ? catRightFrameWidth : catLeftFrameWidth;
+            frameHeight = movingRight ? catRightFrameHeight : catLeftFrameHeight;
+            movementScale = movingRight ? labyrinthCatRightScale : labyrinthCatLeftScale;
+        }
+
+        if (movementTexture == nullptr)
+        {
+            if (cat.getTexture() != &catIdleTexture)
+            {
+                const sf::Vector2f position = cat.getPosition();
+                cat.setTexture(catIdleTexture, true);
+                cat.setOrigin(0.0f, cat.getLocalBounds().height);
+                cat.setScale(labyrinthCatIdleScale, labyrinthCatIdleScale);
+                cat.setPosition(
+                    position.x, position.y + labyrinthIdleVisualYOffset);
+                labyrinthIdleOffsetApplied = true;
+                catAnimClock.restart();
+            }
+            return;
+        }
+
+        if (cat.getTexture() != movementTexture)
+        {
+            if (labyrinthIdleOffsetApplied)
+            {
+                cat.move(0.0f, -labyrinthIdleVisualYOffset);
+                labyrinthIdleOffsetApplied = false;
+            }
+            *currentFrame = 0;
+            cat.setTexture(*movementTexture, true);
+            cat.setOrigin(0.0f, cat.getLocalBounds().height);
+            cat.setScale(movementScale, movementScale);
+            cat.setTextureRect(sf::IntRect(
+                0, 0, frameWidth, frameHeight));
+            catAnimClock.restart();
+        }
+        if (catAnimClock.getElapsedTime().asSeconds() >= rightFrameDuration)
+        {
+            *currentFrame = (*currentFrame + 1) % 4;
+            cat.setTextureRect(sf::IntRect(
+                *currentFrame * frameWidth, 0, frameWidth, frameHeight));
+            catAnimClock.restart();
+        }
+
+        const float movementSpeed = 260.0f;
+        const float horizontalDirection = movingRight ? 1.0f : -1.0f;
+        const float verticalDirection = movingDown ? 1.0f : -1.0f;
+        if (movingHorizontal)
+        {
+            const float previousX = cat.getPosition().x;
+            const float rightLimit = labyrinthBounds.left + labyrinthBounds.width -
+                cat.getGlobalBounds().width;
+            cat.setPosition(std::max(labyrinthBounds.left,
+                std::min(previousX + horizontalDirection * movementSpeed * deltaTime,
+                    rightLimit)), cat.getPosition().y);
+            if (labyrinthCollides(labyrinthCollisionBounds(cat)))
+            {
+                cat.setPosition(previousX, cat.getPosition().y);
+            }
+        }
+        if (movingVertical)
+        {
+            const float previousY = cat.getPosition().y;
+            const float verticalMovementMargin = labyrinthBounds.height * 5.0f /
+                static_cast<float>(labyrinthRows);
+            const float topLimit = labyrinthBounds.top - verticalMovementMargin +
+                cat.getGlobalBounds().height;
+            const float bottomLimit = labyrinthBounds.top + labyrinthBounds.height +
+                verticalMovementMargin;
+            cat.setPosition(cat.getPosition().x, std::max(topLimit,
+                std::min(previousY + verticalDirection * movementSpeed * deltaTime,
+                    bottomLimit)));
+            if (labyrinthCollides(labyrinthCollisionBounds(cat)))
+            {
+                cat.setPosition(cat.getPosition().x, previousY);
+            }
+        }
+    };
     const float energyDrainInterval = 30.0f;
     float movementEnergyTime = 0.0f;
     sf::Clock foodWarningClock;
@@ -370,6 +623,7 @@ int EjecutarJuego()
     bool sick = false;
     bool gameOver = false;
     bool veterinarianScreen = false;
+    bool labyrinthScreen = false;
     int selectedGameOverOption = 0;
     std::string gameOverState = "HAMBRIENTO";
     const float baseCatSpeed = 220.0f;
@@ -415,6 +669,8 @@ int EjecutarJuego()
         bool downKeyPressed = false;
         bool veterinarianKeyPressed = false;
         bool veterinarianMousePressed = false;
+        bool labyrinthKeyPressed = false;
+        bool escapeKeyPressed = false;
 
         sf::Event event{};
         while (window.pollEvent(event))
@@ -535,6 +791,16 @@ int EjecutarJuego()
                 veterinarianKeyPressed = true;
             }
 
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::P && started)
+            {
+                labyrinthKeyPressed = true;
+            }
+
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape && labyrinthScreen)
+            {
+                escapeKeyPressed = true;
+            }
+
             if (event.type == sf::Event::MouseButtonPressed &&
                 event.mouseButton.button == sf::Mouse::Left && started)
             {
@@ -641,6 +907,40 @@ int EjecutarJuego()
             window.clear(sf::Color::Black);
             window.draw(veterinarianText);
         }
+        else if (labyrinthScreen)
+        {
+            if (escapeKeyPressed)
+            {
+                labyrinthScreen = false;
+                cat.setTexture(catIdleTexture, true);
+                cat.setOrigin(0.0f, cat.getLocalBounds().height);
+                cat.setScale(catScale, catScale);
+                cat.setPosition(
+                    backgroundBounds.left + backgroundBounds.width * 0.47f,
+                    catGroundY);
+            }
+
+            const bool labyrinthMovingRight =
+                sf::Keyboard::isKeyPressed(sf::Keyboard::D) ||
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Right);
+            const bool labyrinthMovingLeft =
+                sf::Keyboard::isKeyPressed(sf::Keyboard::A) ||
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Left);
+            const bool labyrinthMovingUp =
+                sf::Keyboard::isKeyPressed(sf::Keyboard::W) ||
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Up);
+            const bool labyrinthMovingDown =
+                sf::Keyboard::isKeyPressed(sf::Keyboard::S) ||
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Down);
+            if (!escapeKeyPressed)
+            {
+                moveLabyrinthCat(labyrinthMovingRight, labyrinthMovingLeft,
+                    labyrinthMovingUp, labyrinthMovingDown, deltaTime);
+            }
+
+            window.draw(labyrinthBackground);
+            window.draw(cat);
+        }
         else if (gameOver)
         {
             restartOption.setOutlineColor(selectedGameOverOption == 0 ? sf::Color::Yellow : sf::Color::White);
@@ -672,6 +972,24 @@ int EjecutarJuego()
             const bool nearBed = cama.EstaCerca(cat.getPosition().x);
             const bool nearFood = comida.CercaDeComida(cat.getPosition().x);
             const bool nearBathroom = arenero.EstaCerca(cat.getPosition().x);
+            const float doorX = backgroundBounds.left + backgroundBounds.width * 0.5f;
+            const bool nearDoor = std::abs(cat.getPosition().x - doorX) <=
+                backgroundBounds.width * 0.12f;
+
+            if (labyrinthKeyPressed && energy > 0 && nearDoor)
+            {
+                labyrinthScreen = true;
+                cat.setTexture(catIdleTexture, true);
+                cat.setOrigin(0.0f, cat.getLocalBounds().height);
+                cat.setScale(labyrinthCatIdleScale, labyrinthCatIdleScale);
+                cat.setPosition(
+                    labyrinthBackground.getGlobalBounds().left +
+                        labyrinthBackground.getGlobalBounds().width / 2.0f -
+                        cat.getGlobalBounds().width / 2.0f,
+                    labyrinthBackground.getGlobalBounds().top +
+                        labyrinthBackground.getGlobalBounds().height * 0.54f +
+                        cat.getGlobalBounds().height / 2.0f);
+            }
 
             if (energy == 0 && !zeroEnergyTimerStarted)
             {
@@ -891,6 +1209,10 @@ int EjecutarJuego()
             {
                 window.draw(veterinarianOption);
                 window.draw(veterinarianOptionText);
+            }
+            if (energy > 0 && nearDoor)
+            {
+                window.draw(labyrinthOptionText);
             }
 
             window.draw(healthText);
