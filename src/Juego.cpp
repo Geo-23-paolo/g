@@ -2,6 +2,9 @@
 #include <SFML/Audio.hpp>
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <limits>
+#include <queue>
 #include <vector>
 
 #include "Arenero.hpp"
@@ -96,6 +99,12 @@ int EjecutarJuego()
         return 1;
     }
 
+    sf::Texture mouseTexture;
+    if (!mouseTexture.loadFromFile("assets/Images/Raton.png"))
+    {
+        return 1;
+    }
+
     auto fitSpriteToWindow = [](sf::Sprite& sprite, const sf::RenderWindow& window)
     {
         const sf::Vector2u spriteSize = sprite.getTexture()->getSize();
@@ -114,11 +123,24 @@ int EjecutarJuego()
     sf::Sprite gameOverBackground(gameOverTexture);
     sf::Sprite registrationBackground(registrationTexture);
     sf::Sprite labyrinthBackground(labyrinthTexture);
+    sf::Sprite mouseSprite(mouseTexture);
     fitSpriteToWindow(cover, window);
     fitSpriteToWindow(background, window);
     fitSpriteToWindow(gameOverBackground, window);
     fitSpriteToWindow(registrationBackground, window);
     fitSpriteToWindow(labyrinthBackground, window);
+
+    const sf::Vector2u mouseTextureSize = mouseTexture.getSize();
+    const float mouseScale = std::min(
+        55.0f / static_cast<float>(mouseTextureSize.x),
+        55.0f / static_cast<float>(mouseTextureSize.y));
+    mouseSprite.setScale(mouseScale, mouseScale);
+    mouseSprite.setOrigin(
+        static_cast<float>(mouseTextureSize.x) / 2.0f,
+        static_cast<float>(mouseTextureSize.y) / 2.0f);
+    mouseSprite.setPosition(
+        static_cast<float>(window.getSize().x) - 35.0f,
+        18.0f);
 
     const sf::FloatRect labyrinthBounds = labyrinthBackground.getGlobalBounds();
     const std::vector<std::string> labyrinthMap = {
@@ -128,8 +150,8 @@ int EjecutarJuego()
         "0111111111111111111111111111111111111111111111111111111111111111111110",
         "0111111111111111111111111111111111111111111111111111111111111111111110",
         "0111110000011111111111110000001110111011100000001111110111111000001110",
-        "0111110000011111101111110000001110111011100000001111110111111000001110",
-        "0111111111111111101111110000001110111011100000001111110111111111111110",
+        "0111110000011111111111110000001110111011100000001111110111111000001110",
+        "01111111111111111011111111111111101110111111111111111110111111111111110",
         "0111111111111111101111111111111111111111111111111111110111111111111110",
         "0111111111111111101111111111111111111111111111111111110111111111111110",
         "0111000111111111111111111111111111111111111111111111110111111111111110",
@@ -143,7 +165,7 @@ int EjecutarJuego()
         "1111110011110111111111111001111111111111111001111111111111011110111111",
         "0000000011110111111111111001111111111111111001111111111111011110111111",
         "1111111111111111111111111111111111111111111111111111111111111110000000",
-        "1111111111111111111110111111111111111111111111110111111111111111111111",
+        "1111111111111111111110111111111111111111111111111101111111111111111111",
         "1111111111111111111111111111111111111111111111111111111111111111111111",
         "1111111111111111111111111001111111111111111001111111111111111111111111",
         "0000000011110111111111111001111111111111111001111111111111011110000000",
@@ -170,6 +192,7 @@ int EjecutarJuego()
     };
     const int labyrinthRows = static_cast<int>(labyrinthMap.size());
     const int labyrinthColumns = static_cast<int>(labyrinthMap.front().size());
+    const int labyrinthCatLogicalSize = 2;
     auto labyrinthCollides = [&](const sf::FloatRect& bounds)
     {
         const float leftPixel = (bounds.left - labyrinthBounds.left) /
@@ -188,9 +211,9 @@ int EjecutarJuego()
         const int left = std::max(0, static_cast<int>(std::floor(leftPixel)));
         const int top = std::max(0, static_cast<int>(std::floor(topPixel)));
         const int right = std::min(
-            labyrinthColumns - 1, static_cast<int>(std::ceil(rightPixel)));
+            labyrinthColumns - 1, static_cast<int>(std::ceil(rightPixel)) - 1);
         const int bottom = std::min(
-            labyrinthRows - 1, static_cast<int>(std::ceil(bottomPixel)));
+            labyrinthRows - 1, static_cast<int>(std::ceil(bottomPixel)) - 1);
         for (int row = top; row <= bottom; ++row)
         {
             for (int column = left; column <= right; ++column)
@@ -202,6 +225,118 @@ int EjecutarJuego()
             }
         }
         return false;
+    };
+
+    auto screenToLabyrinthCell = [&](const sf::Vector2f& position)
+    {
+        return sf::Vector2i(
+            std::clamp(static_cast<int>((position.x - labyrinthBounds.left) /
+                labyrinthBounds.width * labyrinthColumns) -
+                labyrinthCatLogicalSize / 2, 0,
+                labyrinthColumns - labyrinthCatLogicalSize),
+            std::clamp(static_cast<int>((position.y - labyrinthBounds.top) /
+                labyrinthBounds.height * labyrinthRows) -
+                labyrinthCatLogicalSize / 2, 0,
+                labyrinthRows - labyrinthCatLogicalSize));
+    };
+    auto labyrinthCellCenter = [&](const sf::Vector2i& cell)
+    {
+        return sf::Vector2f(
+            labyrinthBounds.left + (static_cast<float>(cell.x) +
+                labyrinthCatLogicalSize / 2.0f) /
+                labyrinthColumns * labyrinthBounds.width,
+            labyrinthBounds.top + (static_cast<float>(cell.y) +
+                labyrinthCatLogicalSize / 2.0f) /
+                labyrinthRows * labyrinthBounds.height);
+    };
+    auto findMousePath = [&](const sf::Vector2i& start, const sf::Vector2i& goal)
+    {
+        const int cellCount = labyrinthRows * labyrinthColumns;
+        const int startIndex = start.y * labyrinthColumns + start.x;
+        const int goalIndex = goal.y * labyrinthColumns + goal.x;
+        const int infinity = std::numeric_limits<int>::max();
+        std::vector<int> costs(cellCount, infinity);
+        std::vector<int> parents(cellCount, -1);
+        std::priority_queue<std::pair<int, int>,
+            std::vector<std::pair<int, int>>,
+            std::greater<std::pair<int, int>>> openSet;
+        const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        auto heuristic = [&](const sf::Vector2i& cell)
+        {
+            return std::abs(cell.x - goal.x) + std::abs(cell.y - goal.y);
+        };
+        auto canFit = [&](const sf::Vector2i& cell)
+        {
+            if (cell.x < 0 || cell.y < 0 ||
+                cell.x + labyrinthCatLogicalSize > labyrinthColumns ||
+                cell.y + labyrinthCatLogicalSize > labyrinthRows)
+            {
+                return false;
+            }
+            for (int row = cell.y;
+                row < cell.y + labyrinthCatLogicalSize; ++row)
+            {
+                for (int column = cell.x;
+                    column < cell.x + labyrinthCatLogicalSize; ++column)
+                {
+                    if (labyrinthMap[row][column] == '0')
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+
+        if (!canFit(start) || !canFit(goal))
+        {
+            return std::vector<sf::Vector2i>();
+        }
+        costs[startIndex] = 0;
+        openSet.push({heuristic(start), startIndex});
+        while (!openSet.empty())
+        {
+            const int currentIndex = openSet.top().second;
+            openSet.pop();
+            if (currentIndex == goalIndex)
+            {
+                break;
+            }
+
+            const sf::Vector2i current(
+                currentIndex % labyrinthColumns,
+                currentIndex / labyrinthColumns);
+            for (const auto& direction : directions)
+            {
+                const int nextX = current.x + direction[0];
+                const int nextY = current.y + direction[1];
+                if (!canFit(sf::Vector2i(nextX, nextY)))
+                {
+                    continue;
+                }
+                const int nextIndex = nextY * labyrinthColumns + nextX;
+                const int nextCost = costs[currentIndex] + 1;
+                if (nextCost < costs[nextIndex])
+                {
+                    costs[nextIndex] = nextCost;
+                    parents[nextIndex] = currentIndex;
+                    openSet.push({nextCost + heuristic({nextX, nextY}), nextIndex});
+                }
+            }
+        }
+
+        if (startIndex != goalIndex && parents[goalIndex] == -1)
+        {
+            return std::vector<sf::Vector2i>();
+        }
+        std::vector<sf::Vector2i> path;
+        for (int index = goalIndex; index != -1; index = parents[index])
+        {
+            path.push_back(sf::Vector2i(
+                index % labyrinthColumns, index / labyrinthColumns));
+        }
+        std::reverse(path.begin(), path.end());
+        return path;
     };
 
     const sf::Vector2u catSize = catIdleTexture.getSize();
@@ -258,9 +393,9 @@ int EjecutarJuego()
     {
         const sf::FloatRect visualBounds = sprite.getGlobalBounds();
         const float width = labyrinthBounds.width /
-            static_cast<float>(labyrinthColumns);
+            static_cast<float>(labyrinthColumns) * labyrinthCatLogicalSize;
         const float height = labyrinthBounds.height /
-            static_cast<float>(labyrinthRows);
+            static_cast<float>(labyrinthRows) * labyrinthCatLogicalSize;
         return sf::FloatRect(
             visualBounds.left + (visualBounds.width - width) / 2.0f,
             visualBounds.top + (visualBounds.height - height) / 2.0f,
@@ -624,6 +759,12 @@ int EjecutarJuego()
     bool gameOver = false;
     bool veterinarianScreen = false;
     bool labyrinthScreen = false;
+    bool draggingMouse = false;
+    sf::Vector2f mouseDragOffset;
+    bool mouseTargetActive = false;
+    sf::Vector2i mouseTargetCell;
+    std::vector<sf::Vector2i> mousePath;
+    std::size_t mousePathIndex = 0;
     int selectedGameOverOption = 0;
     std::string gameOverState = "HAMBRIENTO";
     const float baseCatSpeed = 220.0f;
@@ -801,6 +942,43 @@ int EjecutarJuego()
                 escapeKeyPressed = true;
             }
 
+            if (labyrinthScreen && event.type == sf::Event::MouseButtonPressed &&
+                event.mouseButton.button == sf::Mouse::Left)
+            {
+                const sf::Vector2f mousePosition = window.mapPixelToCoords(
+                    sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
+                if (mouseSprite.getGlobalBounds().contains(mousePosition))
+                {
+                    draggingMouse = true;
+                    mouseDragOffset = mouseSprite.getPosition() - mousePosition;
+                }
+            }
+
+            if (labyrinthScreen && event.type == sf::Event::MouseMoved && draggingMouse)
+            {
+                const sf::Vector2f mousePosition = window.mapPixelToCoords(
+                    sf::Vector2i(event.mouseMove.x, event.mouseMove.y));
+                mouseSprite.setPosition(mousePosition + mouseDragOffset);
+            }
+
+            if (event.type == sf::Event::MouseButtonReleased &&
+                event.mouseButton.button == sf::Mouse::Left)
+            {
+                if (labyrinthScreen && draggingMouse)
+                {
+                    const sf::Vector2f mousePosition = window.mapPixelToCoords(
+                        sf::Vector2i(event.mouseButton.x, event.mouseButton.y));
+                    if (labyrinthBounds.contains(mousePosition))
+                    {
+                        mouseTargetCell = screenToLabyrinthCell(mousePosition);
+                        mousePath.clear();
+                        mousePathIndex = 0;
+                        mouseTargetActive = true;
+                    }
+                }
+                draggingMouse = false;
+            }
+
             if (event.type == sf::Event::MouseButtonPressed &&
                 event.mouseButton.button == sf::Mouse::Left && started)
             {
@@ -912,6 +1090,9 @@ int EjecutarJuego()
             if (escapeKeyPressed)
             {
                 labyrinthScreen = false;
+                mouseTargetActive = false;
+                mousePath.clear();
+                mousePathIndex = 0;
                 cat.setTexture(catIdleTexture, true);
                 cat.setOrigin(0.0f, cat.getLocalBounds().height);
                 cat.setScale(catScale, catScale);
@@ -934,11 +1115,81 @@ int EjecutarJuego()
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Down);
             if (!escapeKeyPressed)
             {
-                moveLabyrinthCat(labyrinthMovingRight, labyrinthMovingLeft,
-                    labyrinthMovingUp, labyrinthMovingDown, deltaTime);
+                if (mouseTargetActive)
+                {
+                    if (mousePath.empty())
+                    {
+                        const sf::FloatRect catBounds = cat.getGlobalBounds();
+                        const sf::Vector2f catCenter(
+                            catBounds.left + catBounds.width / 2.0f,
+                            catBounds.top + catBounds.height / 2.0f);
+                        mousePath = findMousePath(
+                            screenToLabyrinthCell(catCenter), mouseTargetCell);
+                        mousePathIndex = mousePath.size() > 1 ? 1 : mousePath.size();
+                    }
+
+                    if (mousePathIndex < mousePath.size())
+                    {
+                        const sf::FloatRect catBounds = cat.getGlobalBounds();
+                        const sf::Vector2f catCenter(
+                            catBounds.left + catBounds.width / 2.0f,
+                            catBounds.top + catBounds.height / 2.0f);
+                        const sf::Vector2f nextCellCenter = labyrinthCellCenter(
+                            mousePath[mousePathIndex]);
+                        const float cellWidth = labyrinthBounds.width /
+                            static_cast<float>(labyrinthColumns);
+                        const float cellHeight = labyrinthBounds.height /
+                            static_cast<float>(labyrinthRows);
+                        if (std::abs(catCenter.x - nextCellCenter.x) <= cellWidth * 0.25f &&
+                            std::abs(catCenter.y - nextCellCenter.y) <= cellHeight * 0.25f)
+                        {
+                            ++mousePathIndex;
+                        }
+                        else
+                        {
+                            const bool moveRight = nextCellCenter.x > catCenter.x;
+                            const bool moveLeft = nextCellCenter.x < catCenter.x;
+                            const bool moveDown = nextCellCenter.y > catCenter.y;
+                            const bool moveUp = nextCellCenter.y < catCenter.y;
+                            moveLabyrinthCat(moveRight, moveLeft,
+                                moveUp, moveDown, deltaTime);
+                        }
+                    }
+                    else
+                    {
+                        mouseTargetActive = false;
+                    }
+                }
+                else
+                {
+                    moveLabyrinthCat(labyrinthMovingRight, labyrinthMovingLeft,
+                        labyrinthMovingUp, labyrinthMovingDown, deltaTime);
+                }
+
+                if (cat.getGlobalBounds().intersects(mouseSprite.getGlobalBounds()))
+                {
+                    if (gato.ObtenerEnergia() > 0)
+                    {
+                        gato.PerderEnergia();
+                        energySprites[gato.ObtenerEnergia()].setTextureRect(
+                            sf::IntRect(0, 0, energyFrameWidth, energyFrameHeight));
+                    }
+                    labyrinthScreen = false;
+                    mouseTargetActive = false;
+                    mousePath.clear();
+                    mousePathIndex = 0;
+                    draggingMouse = false;
+                    cat.setTexture(catIdleTexture, true);
+                    cat.setOrigin(0.0f, cat.getLocalBounds().height);
+                    cat.setScale(catScale, catScale);
+                    cat.setPosition(
+                        backgroundBounds.left + backgroundBounds.width * 0.47f,
+                        catGroundY);
+                }
             }
 
             window.draw(labyrinthBackground);
+            window.draw(mouseSprite);
             window.draw(cat);
         }
         else if (gameOver)
